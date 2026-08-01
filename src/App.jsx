@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
-import { supabase } from './supabase'
+import Users from './pages/Users'
+import Layout from './components/Layout'
 
 function App() {
   const [user, setUser] = useState(null)
@@ -45,9 +46,20 @@ function App() {
         element={user ? <Navigate to="/" /> : <Login onLogin={handleLogin} />}
       />
       <Route
-        path="/*"
-        element={user ? <Dashboard user={user} onLogout={handleLogout} /> : <Navigate to="/login" />}
-      />
+        path="/"
+        element={user ? <Layout user={user} onLogout={handleLogout} /> : <Navigate to="/login" />}
+      >
+        <Route index element={<Dashboard user={user} />} />
+        <Route
+          path="users"
+          element={
+            user?.role === 'administrator'
+              ? <Users user={user} />
+              : <Navigate to="/" />
+          }
+        />
+      </Route>
+      <Route path="*" element={<Navigate to="/" />} />
     </Routes>
   )
 }
