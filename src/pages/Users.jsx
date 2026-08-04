@@ -5,6 +5,7 @@ export default function Users({ user }) {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
+  const [editingId, setEditingId] = useState(null)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [form, setForm] = useState({
@@ -30,9 +31,39 @@ export default function Users({ user }) {
     loadUsers()
   }, [])
 
+  const resetForm = () => {
+    setForm({
+      username: '',
+      password: '',
+      full_name: '',
+      role: 'admin_brand',
+      brand_access: 'Herbacare',
+      approver_level: 1
+    })
+    setEditingId(null)
+    setShowForm(false)
+    setError('')
+  }
+
   const handleChange = (e) => {
     const { name, value } = e.target
     setForm(prev => ({ ...prev, [name]: value }))
+  }
+
+  const startEdit = (u) => {
+    const brand = (u.brand_access && u.brand_access[0]) || 'Herbacare'
+    setForm({
+      username: u.username,
+      password: '',
+      full_name: u.full_name,
+      role: u.role,
+      brand_access: brand === 'Semua' ? 'Herbacare' : brand,
+      approver_level: u.approver_level || 1
+    })
+    setEditingId(u.id)
+    setShowForm(true)
+    setError('')
+    setSuccess('')
   }
 
   const handleSubmit = async (e) => {
@@ -40,8 +71,13 @@ export default function Users({ user }) {
     setError('')
     setSuccess('')
 
-    if (!form.username.trim() || !form.password || !form.full_name.trim()) {
-      setError('Username, password, dan nama lengkap wajib diisi')
+    if (!form.full_name.trim()) {
+      setError('Nama lengkap wajib diisi')
+      return
+    }
+
+    if (!editingId && (!form.username.trim() || !form.password)) {
+      setError('Username dan password wajib diisi untuk user baru')
       return
     }
 
@@ -51,45 +87,61 @@ export default function Users({ user }) {
     } else if (form.role === 'admin_brand') {
       brandAccess = [form.brand_access]
     } else {
-      // approver
-      if (form.approver_level >= 4) {
+      if (Number(form.approver_level) >= 4) {
         brandAccess = ['Semua']
       } else {
         brandAccess = [form.brand_access]
       }
     }
 
-    const payload = {
-      username: form.username.trim().toLowerCase(),
-      password_hash: form.password,
-      full_name: form.full_name.trim(),
-      role: form.role,
-      brand_access: brandAccess,
-      approver_level: form.role === 'approver' ? Number(form.approver_level) : null,
-      is_active: true
-    }
-
-    const { error: insertError } = await supabase.from('users').insert([payload])
-
-    if (insertError) {
-      if (insertError.code === '23505') {
-        setError('Username sudah dipakai')
-      } else {
-        setError(insertError.message || 'Gagal menambah user')
+    if (editingId) {
+      // UPDATE
+      const payload = {
+        full_name: form.full_name.trim(),
+        role: form.role,
+        brand_access: brandAccess,
+        approver_level: form.role === 'approver' ? Number(form.approver_level) : null
       }
-      return
+      if (form.password.trim()) {
+        payload.password_hash = form.password
+      }
+
+      const { error: updateError } = await supabase
+        .from('users')
+        .update(payload)
+        .eq('id', editingId)
+
+      if (updateError) {
+        setError(updateError.message || 'Gagal mengubah user')
+        return
+      }
+      setSuccess('User berhasil diubah')
+    } else {
+      // INSERT
+      const payload = {
+        username: form.username.trim().toLowerCase(),
+        password_hash: form.password,
+        full_name: form.full_name.trim(),
+        role: form.role,
+        brand_access: brandAccess,
+        approver_level: form.role === 'approver' ? Number(form.approver_level) : null,
+        is_active: true
+      }
+
+      const { error: insertError } = await supabase.from('users').insert([payload])
+
+      if (insertError) {
+        if (insertError.code === '23505') {
+          setError('Username sudah dipakai')
+        } else {
+          setError(insertError.message || 'Gagal menambah user')
+        }
+        return
+      }
+      setSuccess('User berhasil ditambahkan')
     }
 
-    setSuccess('User berhasil ditambahkan')
-    setForm({
-      username: '',
-      password: '',
-      full_name: '',
-      role: 'admin_brand',
-      brand_access: 'Herbacare',
-      approver_level: 1
-    })
-    setShowForm(false)
+    resetForm()
     loadUsers()
   }
 
@@ -112,7 +164,10 @@ export default function Users({ user }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
         <h1 style={{ fontSize: '1.4rem', color: '#1F4E79' }}>Kelola User</h1>
         <button
-          onClick={() => { setShowForm(!showForm); setError(''); setSuccess('') }}
+          onClick={() => {
+            if (showForm) resetForm()
+            else { setShowForm(true); setEditingId(null); setSuccess(''); setError('') }
+          }}
           style={styles.primaryBtn}
         >
           {showForm ? 'Tutup Form' : '+ Tambah User'}
@@ -124,16 +179,35 @@ export default function Users({ user }) {
 
       {showForm && (
         <div style={styles.card}>
-          <h3 style={{ marginBottom: '1rem', color: '#1F4E79' }}>Tambah User Baru</h3>
+          <h3 style={{ marginBottom: '1rem', color: '#1F4E79' }}>
+            {editingId ? 'Edit User' : 'Tambah User Baru'}
+          </h3>
           <form onSubmit={handleSubmit}>
             <div style={styles.formGrid}>
               <div style={styles.field}>
-                <label style={styles.label}>Username *</label>
-                <input name="username" value={form.username} onChange={handleChange} style={styles.input} required />
+                <label style={styles.label}>Username {editingId ? '(tidak bisa diubah)' : '*'}</label>
+                <input
+                  name="username"
+                  value={form.username}
+                  onChange={handleChange}
+                  style={{ ...styles.input, background: editingId ? '#f3f4f6' : 'white' }}
+                  required={!editingId}
+                  disabled={!!editingId}
+                />
               </div>
               <div style={styles.field}>
-                <label style={styles.label}>Password *</label>
-                <input name="password" type="text" value={form.password} onChange={handleChange} style={styles.input} required />
+                <label style={styles.label}>
+                  Password {editingId ? '(kosongkan jika tidak diubah)' : '*'}
+                </label>
+                <input
+                  name="password"
+                  type="text"
+                  value={form.password}
+                  onChange={handleChange}
+                  style={styles.input}
+                  required={!editingId}
+                  placeholder={editingId ? 'Biarkan kosong jika tidak ganti' : ''}
+                />
               </div>
               <div style={styles.field}>
                 <label style={styles.label}>Nama Lengkap *</label>
@@ -172,8 +246,15 @@ export default function Users({ user }) {
                 </div>
               )}
             </div>
-            <div style={{ marginTop: '1.25rem' }}>
-              <button type="submit" style={styles.primaryBtn}>Simpan User</button>
+            <div style={{ marginTop: '1.25rem', display: 'flex', gap: '0.75rem' }}>
+              <button type="submit" style={styles.primaryBtn}>
+                {editingId ? 'Simpan Perubahan' : 'Simpan User'}
+              </button>
+              {editingId && (
+                <button type="button" onClick={resetForm} style={styles.secondaryBtn}>
+                  Batal
+                </button>
+              )}
             </div>
           </form>
         </div>
@@ -218,14 +299,16 @@ export default function Users({ user }) {
                       </span>
                     </td>
                     <td style={styles.td}>
-                      {u.username !== 'admin' && (
-                        <button
-                          onClick={() => toggleActive(u)}
-                          style={styles.smallBtn}
-                        >
-                          {u.is_active ? 'Nonaktifkan' : 'Aktifkan'}
+                      <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                        <button onClick={() => startEdit(u)} style={styles.smallBtn}>
+                          Edit
                         </button>
-                      )}
+                        {u.username !== 'admin' && (
+                          <button onClick={() => toggleActive(u)} style={styles.smallBtn}>
+                            {u.is_active ? 'Nonaktifkan' : 'Aktifkan'}
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -254,14 +337,26 @@ const styles = {
     borderRadius: '8px',
     padding: '0.6rem 1.1rem',
     fontWeight: 600,
-    fontSize: '0.9rem'
+    fontSize: '0.9rem',
+    cursor: 'pointer'
+  },
+  secondaryBtn: {
+    background: '#f3f4f6',
+    color: '#374151',
+    border: '1px solid #d1d5db',
+    borderRadius: '8px',
+    padding: '0.6rem 1.1rem',
+    fontWeight: 600,
+    fontSize: '0.9rem',
+    cursor: 'pointer'
   },
   smallBtn: {
     background: '#f3f4f6',
     border: '1px solid #d1d5db',
     borderRadius: '6px',
     padding: '0.3rem 0.6rem',
-    fontSize: '0.8rem'
+    fontSize: '0.8rem',
+    cursor: 'pointer'
   },
   formGrid: {
     display: 'grid',
