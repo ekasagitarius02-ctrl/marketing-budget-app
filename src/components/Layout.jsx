@@ -31,11 +31,12 @@ export default function Layout({ user, onLogout }) {
         <nav style={styles.nav}>
           <NavLink to="/" end style={linkStyle}>Dashboard</NavLink>
 
+          {(user.role === 'administrator' || user.role === 'admin_brand' || user.role === 'approver') && (
+            <NavLink to="/programs" style={linkStyle}>Program Tracker</NavLink>
+          )}
+
           {(user.role === 'administrator' || user.role === 'admin_brand') && (
-            <>
-              <div style={styles.navDisabled}>Program Tracker</div>
-              <div style={styles.navDisabled}>Budgeting</div>
-            </>
+            <div style={styles.navDisabled}>Budgeting</div>
           )}
 
           {user.role === 'approver' && (
@@ -98,7 +99,8 @@ const styles = {
     border: 'none',
     borderRadius: '6px',
     color: 'white',
-    fontSize: '0.85rem'
+    fontSize: '0.85rem',
+    cursor: 'pointer'
   },
   main: { flex: 1, display: 'flex', flexDirection: 'column', background: '#f4f6f9' },
   content: { padding: '1.5rem 1.75rem', flex: 1 }
