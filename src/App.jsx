@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Users from './pages/Users'
+import Programs from './pages/Programs'
 import Layout from './components/Layout'
 
 function App() {
@@ -55,6 +56,14 @@ function App() {
           element={
             user?.role === 'administrator'
               ? <Users user={user} />
+              : <Navigate to="/" />
+          }
+        />
+        <Route
+          path="programs"
+          element={
+            (user?.role === 'administrator' || user?.role === 'admin_brand' || user?.role === 'approver')
+              ? <Programs user={user} />
               : <Navigate to="/" />
           }
         />
