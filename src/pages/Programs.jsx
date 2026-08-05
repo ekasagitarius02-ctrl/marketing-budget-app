@@ -5,11 +5,13 @@ const BRANDS = ['Herbacare', 'Madu', 'Jelly']
 
 function formatRp(num) {
   if (num == null || num === '') return '-'
-  return 'Rp ' + Number(num).toLocaleString('id-ID')
+  const n = Number(num)
+  const formatted = Math.abs(n).toLocaleString('id-ID')
+  return (n < 0 ? '-Rp ' : 'Rp ') + formatted
 }
 
 function getRequiredLevel(amount) {
-  const n = Number(amount) || 0
+  const n = Math.abs(Number(amount) || 0)
   if (n <= 5000000) return 1
   if (n <= 15000000) return 2
   if (n <= 50000000) return 3
@@ -17,10 +19,17 @@ function getRequiredLevel(amount) {
   return 5
 }
 
+function shortId(id) {
+  if (!id) return '-'
+  return String(id).slice(0, 8).toUpperCase()
+}
+
 export default function Programs({ user }) {
   const [programs, setPrograms] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
+  const [editingId, setEditingId] = useState(null)
+  const [reversalOf, setReversalOf] = useState(null)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [filterStatus, setFilterStatus] = useState('Semua')
@@ -81,11 +90,79 @@ export default function Programs({ user }) {
       period_end: ''
     })
     setShowForm(false)
+    setEditingId(null)
+    setReversalOf(null)
     setError('')
   }
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
+  const openCreate = () => {
+    setEditingId(null)
+    setReversalOf(null)
+    setForm({
+      brand: allowedBrands[0] || '',
+      name: '',
+      description: '',
+      budget_amount: '',
+      period_start: '',
+      period_end: ''
+    })
+    setShowForm(true)
+    setSuccess('')
+    setError('')
+  }
+
+  const startEdit = (p) => {
+    if (p.status !== 'Draft') {
+      setError('Hanya program berstatus Draft yang bisa diedit')
+      return
+    }
+    setEditingId(p.id)
+    setReversalOf(null)
+    setForm({
+      brand: p.brand,
+      name: p.name,
+      description: p.description || '',
+      budget_amount: String(Math.abs(p.budget_amount || 0)),
+      period_start: p.period_start || '',
+      period_end: p.period_end || ''
+    })
+    setShowForm(true)
+    setSuccess('')
+    setError('')
+  }
+
+  const startReversal = (p) => {
+    setEditingId(null)
+    setReversalOf(p)
+    setForm({
+      brand: p.brand,
+      name: 'PEMBALIK - ' + p.name,
+      description: 'Pembalik dari program No. ' + shortId(p.id) + ' — ' + p.name,
+      budget_amount: String(Math.abs(p.budget_amount || 0)),
+      period_start: p.period_start || '',
+      period_end: p.period_end || ''
+    })
+    setShowForm(true)
+    setSuccess('')
+    setError('')
+  }
+
+  const deleteProgram = async (p) => {
+    if (!isAdmin) return
+    const ok = window.confirm('Hapus program "' + p.name + '"?\nTindakan ini tidak bisa dibatalkan.')
+    if (!ok) return
+    setError('')
+    setSuccess('')
+    const { error } = await supabase.from('programs').delete().eq('id', p.id)
+    if (error) {
+      setError(error.message || 'Gagal menghapus program')
+      return
+    }
+    setSuccess('Program berhasil dihapus')
+    loadPrograms()
+  }
+
+  const saveProgram = async (asDraft) => {
     setError('')
     setSuccess('')
 
@@ -94,10 +171,14 @@ export default function Programs({ user }) {
       return
     }
 
-    const amount = Number(form.budget_amount)
+    let amount = Number(form.budget_amount)
     if (amount <= 0) {
       setError('Estimasi Dana harus lebih dari 0')
       return
+    }
+
+    if (reversalOf) {
+      amount = -Math.abs(amount)
     }
 
     if (!isAdmin && !allowedBrands.includes(form.brand)) {
@@ -105,31 +186,72 @@ export default function Programs({ user }) {
       return
     }
 
-    const requiredLevel = getRequiredLevel(amount)
+    const requiredLevel = reversalOf ? 1 : getRequiredLevel(amount)
 
-    const payload = {
-      brand: form.brand,
-      name: form.name.trim(),
-      description: form.description.trim() || null,
-      budget_amount: amount,
-      period_start: form.period_start || null,
-      period_end: form.period_end || null,
-      status: 'Menunggu Approval',
-      current_level: 0,
-      required_level: requiredLevel,
-      created_by: user.id
+    if (editingId) {
+      const payload = {
+        brand: form.brand,
+        name: form.name.trim(),
+        description: form.description.trim() || null,
+        budget_amount: amount,
+        period_start: form.period_start || null,
+        period_end: form.period_end || null,
+        status: asDraft ? 'Draft' : 'Menunggu Approval',
+        current_level: 0,
+        required_level: requiredLevel,
+        updated_at: new Date().toISOString()
+      }
+
+      const { error: updateError } = await supabase
+        .from('programs')
+        .update(payload)
+        .eq('id', editingId)
+        .eq('status', 'Draft')
+
+      if (updateError) {
+        setError(updateError.message || 'Gagal mengubah program')
+        return
+      }
+      setSuccess(asDraft ? 'Draft berhasil disimpan' : 'Program berhasil diajukan untuk approval')
+    } else {
+      let desc = form.description.trim() || null
+      if (reversalOf) {
+        desc = (desc || '') + ' [REF:' + reversalOf.id + ']'
+      }
+
+      const payload = {
+        brand: form.brand,
+        name: form.name.trim(),
+        description: desc,
+        budget_amount: amount,
+        period_start: form.period_start || null,
+        period_end: form.period_end || null,
+        status: asDraft ? 'Draft' : 'Menunggu Approval',
+        current_level: 0,
+        required_level: requiredLevel,
+        created_by: user.id
+      }
+
+      const { error: insertError } = await supabase.from('programs').insert([payload])
+
+      if (insertError) {
+        setError(insertError.message || 'Gagal menyimpan program')
+        return
+      }
+      setSuccess(
+        reversalOf
+          ? 'Program pembalik berhasil diajukan (approval Level 1)'
+          : (asDraft ? 'Draft berhasil disimpan' : 'Program berhasil diajukan untuk approval')
+      )
     }
 
-    const { error: insertError } = await supabase.from('programs').insert([payload])
-
-    if (insertError) {
-      setError(insertError.message || 'Gagal menyimpan program')
-      return
-    }
-
-    setSuccess('Program berhasil diajukan dan menunggu approval')
     resetForm()
     loadPrograms()
+  }
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    saveProgram(false)
   }
 
   const statusColor = (status) => {
@@ -147,6 +269,8 @@ export default function Programs({ user }) {
     ? programs
     : programs.filter(p => p.status === filterStatus)
 
+  const isReversalForm = !!reversalOf
+
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.75rem' }}>
@@ -155,12 +279,7 @@ export default function Programs({ user }) {
           <button
             onClick={() => {
               if (showForm) resetForm()
-              else {
-                setForm(prev => ({ ...prev, brand: allowedBrands[0] || '' }))
-                setShowForm(true)
-                setSuccess('')
-                setError('')
-              }
+              else openCreate()
             }}
             style={styles.primaryBtn}
           >
@@ -174,12 +293,34 @@ export default function Programs({ user }) {
 
       {showForm && canCreate && (
         <div style={styles.card}>
-          <h3 style={{ marginBottom: '1rem', color: '#1F4E79' }}>Buat Pengajuan Program</h3>
+          <h3 style={{ marginBottom: '1rem', color: '#1F4E79' }}>
+            {editingId
+              ? 'Edit Draft Program'
+              : isReversalForm
+                ? 'Buat Pembalik (Ref: ' + shortId(reversalOf.id) + ')'
+                : 'Buat Pengajuan Program'}
+          </h3>
+
+          {isReversalForm && (
+            <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '8px', padding: '0.75rem', marginBottom: '1rem', fontSize: '0.9rem' }}>
+              Pembalik dari: <strong>{reversalOf.name}</strong> ({formatRp(reversalOf.budget_amount)})
+              <br />
+              Nominal akan disimpan sebagai <strong>negatif</strong>. Approval cukup Level 1.
+            </div>
+          )}
+
           <form onSubmit={handleSubmit}>
             <div style={styles.formGrid}>
               <div style={styles.field}>
                 <label style={styles.label}>Brand *</label>
-                <select name="brand" value={form.brand} onChange={handleChange} style={styles.input} required>
+                <select
+                  name="brand"
+                  value={form.brand}
+                  onChange={handleChange}
+                  style={{ ...styles.input, background: isReversalForm ? '#f3f4f6' : 'white' }}
+                  required
+                  disabled={isReversalForm}
+                >
                   <option value="">Pilih Brand</option>
                   {allowedBrands.map(b => (
                     <option key={b} value={b}>{b}</option>
@@ -188,16 +329,18 @@ export default function Programs({ user }) {
               </div>
               <div style={styles.field}>
                 <label style={styles.label}>Nama Program *</label>
-                <input name="name" value={form.name} onChange={handleChange} style={styles.input} required placeholder="Contoh: Campaign Ramadan 2026" />
+                <input name="name" value={form.name} onChange={handleChange} style={styles.input} required />
               </div>
               <div style={styles.field}>
-                <label style={styles.label}>Estimasi Dana (Rp) *</label>
+                <label style={styles.label}>
+                  Estimasi Dana (Rp) * {isReversalForm && <span style={{ color: '#c2410c' }}>(akan negatif)</span>}
+                </label>
                 <input
                   value={form.budget_amount ? Number(form.budget_amount).toLocaleString('id-ID') : ''}
                   onChange={handleBudgetChange}
                   style={styles.input}
                   required
-                  placeholder="Contoh: 10000000"
+                  disabled={isReversalForm}
                 />
               </div>
               <div style={styles.field}>
@@ -216,16 +359,30 @@ export default function Programs({ user }) {
                 value={form.description}
                 onChange={handleChange}
                 style={{ ...styles.input, minHeight: '80px', resize: 'vertical' }}
-                placeholder="Jelaskan singkat kegiatan / tujuan program"
               />
             </div>
-            {form.budget_amount && (
+            {form.budget_amount && !isReversalForm && (
               <p style={{ marginTop: '0.75rem', fontSize: '0.85rem', color: '#6b7280' }}>
-                Level Approval yang dibutuhkan: <strong>Level {getRequiredLevel(form.budget_amount)}</strong>
+                Level Approval: <strong>Level {getRequiredLevel(form.budget_amount)}</strong>
               </p>
             )}
-            <div style={{ marginTop: '1.25rem' }}>
-              <button type="submit" style={styles.primaryBtn}>Kirim untuk Approval</button>
+            {isReversalForm && (
+              <p style={{ marginTop: '0.75rem', fontSize: '0.85rem', color: '#c2410c' }}>
+                Level Approval Pembalik: <strong>Level 1</strong>
+              </p>
+            )}
+            <div style={{ marginTop: '1.25rem', display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+              {!isReversalForm && (
+                <button type="button" onClick={() => saveProgram(true)} style={styles.secondaryBtn}>
+                  Simpan Draft
+                </button>
+              )}
+              <button type="submit" style={styles.primaryBtn}>
+                {isReversalForm ? 'Kirim Pembalik (Level 1)' : 'Kirim untuk Approval'}
+              </button>
+              {(editingId || isReversalForm) && (
+                <button type="button" onClick={resetForm} style={styles.secondaryBtn}>Batal</button>
+              )}
             </div>
           </form>
         </div>
@@ -236,6 +393,7 @@ export default function Programs({ user }) {
           <h3 style={{ color: '#1F4E79' }}>Daftar Program</h3>
           <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ ...styles.input, width: 'auto' }}>
             <option value="Semua">Semua Status</option>
+            <option value="Draft">Draft</option>
             <option value="Menunggu Approval">Menunggu Approval</option>
             <option value="Revisi">Revisi</option>
             <option value="Approved">Approved</option>
@@ -252,30 +410,49 @@ export default function Programs({ user }) {
             <table style={styles.table}>
               <thead>
                 <tr>
+                  <th style={styles.th}>No / Ref</th>
                   <th style={styles.th}>Tanggal</th>
                   <th style={styles.th}>Brand</th>
                   <th style={styles.th}>Nama Program</th>
                   <th style={styles.th}>Estimasi Dana</th>
                   <th style={styles.th}>Level</th>
                   <th style={styles.th}>Status</th>
+                  <th style={styles.th}>Aksi</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map(p => {
                   const sc = statusColor(p.status)
+                  const isNeg = Number(p.budget_amount) < 0
+                  const refMatch = (p.description || '').match(/\[REF:([^\]]+)\]/)
+                  const refId = refMatch ? refMatch[1] : null
                   return (
-                    <tr key={p.id}>
-                      <td style={styles.td}>{p.created_at ? new Date(p.created_at).toLocaleDateString('id-ID') : '-'}</td>
-                      <td style={styles.td}>{p.brand}</td>
+                    <tr key={p.id} style={isNeg ? { background: '#fff7ed' } : {}}>
                       <td style={styles.td}>
-                        <div style={{ fontWeight: 600 }}>{p.name}</div>
-                        {p.description && (
-                          <div style={{ fontSize: '0.8rem', color: '#6b7280', marginTop: '0.2rem' }}>
-                            {p.description.length > 60 ? p.description.slice(0, 60) + '...' : p.description}
+                        <div style={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{shortId(p.id)}</div>
+                        {refId && (
+                          <div style={{ fontSize: '0.75rem', color: '#c2410c' }}>
+                            Ref: {shortId(refId)}
                           </div>
                         )}
                       </td>
-                      <td style={styles.td}>{formatRp(p.budget_amount)}</td>
+                      <td style={styles.td}>{p.created_at ? new Date(p.created_at).toLocaleDateString('id-ID') : '-'}</td>
+                      <td style={styles.td}>{p.brand}</td>
+                      <td style={styles.td}>
+                        <div style={{ fontWeight: 600 }}>
+                          {isNeg && <span style={{ color: '#c2410c', marginRight: '0.35rem' }}>[PEMBALIK]</span>}
+                          {p.name}
+                        </div>
+                        {p.description && (
+                          <div style={{ fontSize: '0.8rem', color: '#6b7280', marginTop: '0.2rem' }}>
+                            {(p.description.replace(/\[REF:[^\]]+\]/, '').trim()).slice(0, 50)}
+                            {(p.description.replace(/\[REF:[^\]]+\]/, '').trim()).length > 50 ? '...' : ''}
+                          </div>
+                        )}
+                      </td>
+                      <td style={{ ...styles.td, color: isNeg ? '#c2410c' : 'inherit', fontWeight: isNeg ? 600 : 400 }}>
+                        {formatRp(p.budget_amount)}
+                      </td>
                       <td style={styles.td}>L{p.required_level}</td>
                       <td style={styles.td}>
                         <span style={{
@@ -288,6 +465,23 @@ export default function Programs({ user }) {
                         }}>
                           {p.status}
                         </span>
+                      </td>
+                      <td style={styles.td}>
+                        <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                          {p.status === 'Draft' && canCreate && (
+                            <button onClick={() => startEdit(p)} style={styles.smallBtn}>Edit</button>
+                          )}
+                          {p.status !== 'Draft' && !isNeg && canCreate && (
+                            <button onClick={() => startReversal(p)} style={{ ...styles.smallBtn, color: '#c2410c' }}>
+                              Buat Pembalik
+                            </button>
+                          )}
+                          {isAdmin && (
+                            <button onClick={() => deleteProgram(p)} style={{ ...styles.smallBtn, color: '#dc2626' }}>
+                              Hapus
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   )
@@ -318,6 +512,24 @@ const styles = {
     padding: '0.6rem 1.1rem',
     fontWeight: 600,
     fontSize: '0.9rem',
+    cursor: 'pointer'
+  },
+  secondaryBtn: {
+    background: '#f3f4f6',
+    color: '#374151',
+    border: '1px solid #d1d5db',
+    borderRadius: '8px',
+    padding: '0.6rem 1.1rem',
+    fontWeight: 600,
+    fontSize: '0.9rem',
+    cursor: 'pointer'
+  },
+  smallBtn: {
+    background: '#f3f4f6',
+    border: '1px solid #d1d5db',
+    borderRadius: '6px',
+    padding: '0.3rem 0.55rem',
+    fontSize: '0.78rem',
     cursor: 'pointer'
   },
   formGrid: {
