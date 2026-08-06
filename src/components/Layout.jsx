@@ -35,12 +35,12 @@ export default function Layout({ user, onLogout }) {
             <NavLink to="/programs" style={linkStyle}>Program Tracker</NavLink>
           )}
 
-          {(user.role === 'administrator' || user.role === 'admin_brand') && (
-            <div style={styles.navDisabled}>Budgeting</div>
+          {user.role === 'approver' && (
+            <NavLink to="/approval" style={linkStyle}>Approval</NavLink>
           )}
 
-          {user.role === 'approver' && (
-            <div style={styles.navDisabled}>Approval</div>
+          {(user.role === 'administrator' || user.role === 'admin_brand') && (
+            <div style={styles.navDisabled}>Budgeting</div>
           )}
 
           {user.role === 'administrator' && (
