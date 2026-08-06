@@ -112,8 +112,8 @@ export default function Programs({ user }) {
   }
 
   const startEdit = (p) => {
-    if (p.status !== 'Draft') {
-      setError('Hanya program berstatus Draft yang bisa diedit')
+    if (p.status !== 'Draft' && p.status !== 'Revisi') {
+      setError('Hanya program berstatus Draft atau Revisi yang bisa diedit')
       return
     }
     setEditingId(p.id)
@@ -206,7 +206,6 @@ export default function Programs({ user }) {
         .from('programs')
         .update(payload)
         .eq('id', editingId)
-        .eq('status', 'Draft')
 
       if (updateError) {
         setError(updateError.message || 'Gagal mengubah program')
@@ -468,7 +467,7 @@ export default function Programs({ user }) {
                       </td>
                       <td style={styles.td}>
                         <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
-                          {p.status === 'Draft' && canCreate && (
+                          {(p.status === 'Draft' || p.status === 'Revisi') && canCreate && (
                             <button onClick={() => startEdit(p)} style={styles.smallBtn}>Edit</button>
                           )}
                           {p.status !== 'Draft' && !isNeg && canCreate && (
