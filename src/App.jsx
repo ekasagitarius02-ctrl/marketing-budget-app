@@ -4,6 +4,7 @@ import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Users from './pages/Users'
 import Programs from './pages/Programs'
+import Approval from './pages/Approval'
 import Layout from './components/Layout'
 
 function App() {
@@ -64,6 +65,14 @@ function App() {
           element={
             (user?.role === 'administrator' || user?.role === 'admin_brand' || user?.role === 'approver')
               ? <Programs user={user} />
+              : <Navigate to="/" />
+          }
+        />
+        <Route
+          path="approval"
+          element={
+            user?.role === 'approver'
+              ? <Approval user={user} />
               : <Navigate to="/" />
           }
         />
