@@ -33,6 +33,9 @@ export default function Programs({ user }) {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [filterStatus, setFilterStatus] = useState('Semua')
+  const [detailProgram, setDetailProgram] = useState(null)
+  const [detailLogs, setDetailLogs] = useState([])
+  const [detailUsers, setDetailUsers] = useState({})
   const [form, setForm] = useState({
     brand: '',
     name: '',
@@ -246,6 +249,30 @@ export default function Programs({ user }) {
 
     resetForm()
     loadPrograms()
+  }
+
+  const openDetail = async (p) => {
+    setDetailProgram(p)
+    setDetailLogs([])
+    const { data: logData } = await supabase
+      .from('approval_logs')
+      .select('*')
+      .eq('program_id', p.id)
+      .order('created_at', { ascending: true })
+    const logs = logData || []
+    setDetailLogs(logs)
+    const userIds = [...new Set(logs.map(l => l.user_id).filter(Boolean))]
+    if (userIds.length > 0) {
+      const { data: usersData } = await supabase
+        .from('users')
+        .select('id, full_name, username')
+        .in('id', userIds)
+      const map = {}
+      ;(usersData || []).forEach(u => { map[u.id] = u })
+      setDetailUsers(map)
+    } else {
+      setDetailUsers({})
+    }
   }
 
   const handleSubmit = (e) => {
@@ -467,6 +494,7 @@ export default function Programs({ user }) {
                       </td>
                       <td style={styles.td}>
                         <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                          <button onClick={() => openDetail(p)} style={styles.smallBtn}>Detail</button>
                           {(p.status === 'Draft' || p.status === 'Revisi') && canCreate && (
                             <button onClick={() => startEdit(p)} style={styles.smallBtn}>Edit</button>
                           )}
@@ -489,6 +517,59 @@ export default function Programs({ user }) {
             </table>
           </div>
         )}
+
+      {detailProgram && (
+        <div style={styles.overlay} onClick={() => setDetailProgram(null)}>
+          <div style={styles.modal} onClick={e => e.stopPropagation()}>
+            <h3 style={{ color: '#1F4E79', marginBottom: '0.75rem' }}>Detail Program</h3>
+            <div style={{ fontSize: '0.95rem', marginBottom: '1rem' }}>
+              <div><strong>{detailProgram.name}</strong></div>
+              <div style={{ color: '#6b7280', marginTop: '0.35rem' }}>
+                {detailProgram.brand} · {formatRp(detailProgram.budget_amount)} · {detailProgram.status}
+              </div>
+              <div style={{ fontSize: '0.8rem', color: '#9ca3af', marginTop: '0.25rem' }}>
+                No: {shortId(detailProgram.id)} · Level {detailProgram.required_level}
+                {detailProgram.created_at ? ' · ' + new Date(detailProgram.created_at).toLocaleString('id-ID') : ''}
+              </div>
+              {detailProgram.description && (
+                <div style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: '#6b7280' }}>
+                  {detailProgram.description.replace(/\[REF:[^\]]+\]/, '').trim()}
+                </div>
+              )}
+            </div>
+            <h4 style={{ fontSize: '0.9rem', color: '#1F4E79', marginBottom: '0.5rem' }}>Riwayat Approval</h4>
+            {detailLogs.length === 0 ? (
+              <p style={{ color: '#6b7280', fontSize: '0.85rem' }}>Belum ada approval.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {detailLogs.map(l => {
+                  const u = detailUsers[l.user_id]
+                  const name = u ? (u.full_name || u.username) : shortId(l.user_id)
+                  const actionColor = l.action === 'Approve' ? '#059669' : l.action === 'Reject' ? '#dc2626' : '#d97706'
+                  return (
+                    <div key={l.id} style={{ border: '1px solid #e5e7eb', borderRadius: '8px', padding: '0.65rem', fontSize: '0.85rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem' }}>
+                        <span><strong>L{l.level}</strong> · {name}</span>
+                        <span style={{ color: actionColor, fontWeight: 600 }}>{l.action}</span>
+                      </div>
+                      <div style={{ color: '#9ca3af', fontSize: '0.78rem', marginTop: '0.25rem' }}>
+                        {l.created_at ? new Date(l.created_at).toLocaleString('id-ID') : ''}
+                      </div>
+                      {l.notes && (
+                        <div style={{ color: '#6b7280', marginTop: '0.25rem' }}>Catatan: {l.notes}</div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+            <div style={{ marginTop: '1.25rem' }}>
+              <button type="button" onClick={() => setDetailProgram(null)} style={styles.secondaryBtn}>Tutup</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       </div>
     </div>
   )
@@ -569,5 +650,24 @@ const styles = {
     borderRadius: '8px',
     marginBottom: '1rem',
     fontSize: '0.9rem'
+  },
+  overlay: {
+    position: 'fixed',
+    inset: 0,
+    background: 'rgba(0,0,0,0.45)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 50,
+    padding: '1rem'
+  },
+  modal: {
+    background: 'white',
+    borderRadius: '12px',
+    padding: '1.5rem',
+    width: '100%',
+    maxWidth: '480px',
+    maxHeight: '90vh',
+    overflowY: 'auto'
   }
 }
