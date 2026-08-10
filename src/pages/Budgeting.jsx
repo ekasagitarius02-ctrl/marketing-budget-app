@@ -246,11 +246,15 @@ export default function Budgeting({ user }) {
                   <div>
                     <div style={styles.statLabel}>Alokasi Tahun</div>
                     {editMode ? (
-                      <input
-                        value={alloc ? Number(alloc).toLocaleString('id-ID') : ''}
-                        onChange={e => handleAllocChange(brand, e.target.value)}
-                        style={{ ...styles.input, width: '140px' }}
-                      />
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                        <span style={{ fontWeight: 600, color: '#1F4E79' }}>Rp</span>
+                        <input
+                          value={alloc ? Number(alloc).toLocaleString('id-ID') : ''}
+                          onChange={e => handleAllocChange(brand, e.target.value)}
+                          style={{ ...styles.input, width: '130px' }}
+                          placeholder="0"
+                        />
+                      </div>
                     ) : (
                       <div style={styles.statValue}>{formatRp(alloc)}</div>
                     )}
@@ -301,11 +305,15 @@ export default function Budgeting({ user }) {
                         return (
                           <td key={m} style={styles.td}>
                             {editMode ? (
-                              <input
-                                value={val ? Number(val).toLocaleString('id-ID') : ''}
-                                onChange={e => handleMonthChange(brand, m, e.target.value)}
-                                style={{ ...styles.input, width: '90px', fontSize: '0.8rem', padding: '0.35rem' }}
-                              />
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2px' }}>
+                                <span style={{ fontSize: '0.7rem', color: '#6b7280' }}>Rp</span>
+                                <input
+                                  value={val ? Number(val).toLocaleString('id-ID') : ''}
+                                  onChange={e => handleMonthChange(brand, m, e.target.value)}
+                                  style={{ ...styles.input, width: '78px', fontSize: '0.75rem', padding: '0.3rem' }}
+                                  placeholder="0"
+                                />
+                              </div>
                             ) : (
                               <span style={{ fontSize: '0.8rem' }}>{val ? formatRp(val) : '-'}</span>
                             )}
