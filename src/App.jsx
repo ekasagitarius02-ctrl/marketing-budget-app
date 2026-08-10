@@ -5,6 +5,7 @@ import Dashboard from './pages/Dashboard'
 import Users from './pages/Users'
 import Programs from './pages/Programs'
 import Approval from './pages/Approval'
+import Budgeting from './pages/Budgeting'
 import Layout from './components/Layout'
 
 function App() {
@@ -73,6 +74,14 @@ function App() {
           element={
             user?.role === 'approver'
               ? <Approval user={user} />
+              : <Navigate to="/" />
+          }
+        />
+        <Route
+          path="budgeting"
+          element={
+            (user?.role === 'administrator' || user?.role === 'admin_brand')
+              ? <Budgeting user={user} />
               : <Navigate to="/" />
           }
         />
