@@ -40,7 +40,7 @@ export default function Layout({ user, onLogout }) {
           )}
 
           {(user.role === 'administrator' || user.role === 'admin_brand') && (
-            <div style={styles.navDisabled}>Budgeting</div>
+            <NavLink to="/budgeting" style={linkStyle}>Budgeting</NavLink>
           )}
 
           {user.role === 'administrator' && (
@@ -80,12 +80,6 @@ const styles = {
     marginBottom: '1rem'
   },
   nav: { flex: 1, display: 'flex', flexDirection: 'column', gap: '0.25rem' },
-  navDisabled: {
-    padding: '0.85rem 1.5rem',
-    opacity: 0.45,
-    fontSize: '0.95rem',
-    cursor: 'default'
-  },
   userBox: {
     padding: '1rem 1.5rem',
     borderTop: '1px solid rgba(255,255,255,0.15)',
