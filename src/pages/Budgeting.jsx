@@ -25,6 +25,8 @@ export default function Budgeting({ user }) {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [editMode, setEditMode] = useState(false)
+  const [logs, setLogs] = useState([])
+  const [showLogs, setShowLogs] = useState(false)
 
   const isAdmin = user.role === 'administrator'
   const isAdminBrand = user.role === 'admin_brand'
@@ -91,6 +93,16 @@ export default function Budgeting({ user }) {
       }
     })
     setRealized(realMap)
+
+    // Load budget change logs (admin only needs, but load for allowed brands)
+    const { data: logData } = await supabase
+      .from('budget_logs')
+      .select('*')
+      .eq('year', year)
+      .order('created_at', { ascending: false })
+      .limit(100)
+    setLogs(logData || [])
+
     setLoading(false)
   }
 
@@ -117,7 +129,30 @@ export default function Budgeting({ user }) {
     setSuccess('')
 
     try {
+      // Ambil nilai lama dari DB untuk log
+      const { data: oldBA } = await supabase
+        .from('brand_budgets')
+        .select('*')
+        .eq('year', year)
+      const { data: oldMB } = await supabase
+        .from('monthly_budgets')
+        .select('*')
+        .eq('year', year)
+
+      const oldAllocMap = {}
+      ;(oldBA || []).forEach(r => { oldAllocMap[r.brand] = Number(r.allocation) || 0 })
+      const oldMonthMap = {}
+      ;(oldMB || []).forEach(r => {
+        if (!oldMonthMap[r.brand]) oldMonthMap[r.brand] = {}
+        oldMonthMap[r.brand][r.month] = Number(r.plan_amount) || 0
+      })
+
+      const logRows = []
+
       for (const brand of allowedBrands) {
+        const newAlloc = brandAlloc[brand] || 0
+        const oldAlloc = oldAllocMap[brand] || 0
+
         // Upsert brand_budgets
         const { data: existing } = await supabase
           .from('brand_budgets')
@@ -129,19 +164,33 @@ export default function Budgeting({ user }) {
         if (existing?.id) {
           await supabase
             .from('brand_budgets')
-            .update({ allocation: brandAlloc[brand] || 0 })
+            .update({ allocation: newAlloc })
             .eq('id', existing.id)
         } else {
           await supabase.from('brand_budgets').insert([{
             year,
             brand,
-            allocation: brandAlloc[brand] || 0
+            allocation: newAlloc
           }])
+        }
+
+        if (newAlloc !== oldAlloc) {
+          logRows.push({
+            user_id: user.id,
+            year,
+            brand,
+            field_type: 'allocation',
+            month: null,
+            old_value: oldAlloc,
+            new_value: newAlloc
+          })
         }
 
         // Upsert monthly
         for (let m = 1; m <= 12; m++) {
           const plan = (monthly[brand] && monthly[brand][m]) || 0
+          const oldPlan = (oldMonthMap[brand] && oldMonthMap[brand][m]) || 0
+
           const { data: exM } = await supabase
             .from('monthly_budgets')
             .select('id')
@@ -164,10 +213,26 @@ export default function Budgeting({ user }) {
               realized_amount: 0
             }])
           }
+
+          if (plan !== oldPlan) {
+            logRows.push({
+              user_id: user.id,
+              year,
+              brand,
+              field_type: 'monthly',
+              month: m,
+              old_value: oldPlan,
+              new_value: plan
+            })
+          }
         }
       }
 
-      setSuccess('Budget berhasil disimpan')
+      if (logRows.length > 0) {
+        await supabase.from('budget_logs').insert(logRows)
+      }
+
+      setSuccess('Budget berhasil disimpan' + (logRows.length ? ' (' + logRows.length + ' perubahan dicatat)' : ''))
       setEditMode(false)
       loadData()
     } catch (e) {
@@ -211,6 +276,11 @@ export default function Budgeting({ user }) {
               <option key={y} value={y}>{y}</option>
             ))}
           </select>
+          {isAdmin && (
+            <button onClick={() => setShowLogs(!showLogs)} style={styles.secondaryBtn}>
+              {showLogs ? 'Tutup Log' : 'Lihat Log'}
+            </button>
+          )}
           {canEdit && !editMode && (
             <button onClick={() => setEditMode(true)} style={styles.primaryBtn}>Edit Budget</button>
           )}
@@ -227,6 +297,44 @@ export default function Budgeting({ user }) {
 
       {success && <div style={styles.success}>{success}</div>}
       {error && <div style={styles.error}>{error}</div>}
+
+      {showLogs && isAdmin && (
+        <div style={styles.card}>
+          <h3 style={{ color: '#1F4E79', marginBottom: '1rem' }}>Log Perubahan Budget ({year})</h3>
+          {logs.length === 0 ? (
+            <p style={{ color: '#6b7280' }}>Belum ada perubahan tercatat.</p>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={styles.table}>
+                <thead>
+                  <tr>
+                    <th style={{ ...styles.th, textAlign: 'left' }}>Waktu</th>
+                    <th style={{ ...styles.th, textAlign: 'left' }}>Brand</th>
+                    <th style={{ ...styles.th, textAlign: 'left' }}>Field</th>
+                    <th style={{ ...styles.th, textAlign: 'right' }}>Nilai Lama</th>
+                    <th style={{ ...styles.th, textAlign: 'right' }}>Nilai Baru</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {logs.filter(l => allowedBrands.includes(l.brand) || isAdmin).map(l => (
+                    <tr key={l.id}>
+                      <td style={{ ...styles.td, textAlign: 'left', fontSize: '0.8rem' }}>
+                        {l.created_at ? new Date(l.created_at).toLocaleString('id-ID') : '-'}
+                      </td>
+                      <td style={{ ...styles.td, textAlign: 'left' }}>{l.brand}</td>
+                      <td style={{ ...styles.td, textAlign: 'left' }}>
+                        {l.field_type === 'allocation' ? 'Alokasi Tahun' : 'Rencana ' + (MONTHS[(l.month || 1) - 1] || '')}
+                      </td>
+                      <td style={{ ...styles.td, textAlign: 'right' }}>{formatRp(l.old_value)}</td>
+                      <td style={{ ...styles.td, textAlign: 'right', fontWeight: 600 }}>{formatRp(l.new_value)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {loading ? (
         <p>Memuat...</p>
