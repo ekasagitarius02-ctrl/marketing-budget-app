@@ -275,6 +275,124 @@ export default function Programs({ user }) {
     }
   }
 
+  const printProgram = (p, logs, usersMap) => {
+    const desc = (p.description || '').replace(/\[REF:[^\]]+\]/g, '').trim()
+    const isNeg = Number(p.budget_amount) < 0
+    const refMatch = (p.description || '').match(/\[REF:([^\]]+)\]/)
+    const refId = refMatch ? refMatch[1] : null
+    const tgl = p.created_at ? new Date(p.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '-'
+    const periode = [p.period_start, p.period_end].filter(Boolean).map(d => new Date(d).toLocaleDateString('id-ID')).join(' s/d ') || '-'
+
+    let approvalRows = ''
+    if (logs && logs.length > 0) {
+      approvalRows = logs.map(l => {
+        const u = usersMap && usersMap[l.user_id]
+        const name = u ? (u.full_name || u.username) : '-'
+        const t = l.created_at ? new Date(l.created_at).toLocaleString('id-ID') : '-'
+        return '<tr><td style="padding:6px 8px;border:1px solid #333;">L' + l.level + '</td><td style="padding:6px 8px;border:1px solid #333;">' + name + '</td><td style="padding:6px 8px;border:1px solid #333;">' + l.action + '</td><td style="padding:6px 8px;border:1px solid #333;">' + t + '</td><td style="padding:6px 8px;border:1px solid #333;">' + (l.notes || '-') + '</td></tr>'
+      }).join('')
+    } else {
+      approvalRows = '<tr><td colspan="5" style="padding:8px;border:1px solid #333;text-align:center;">Belum ada riwayat approval</td></tr>'
+    }
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>Proposal - ${p.name}</title>
+  <style>
+    @page { size: A4; margin: 15mm; }
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 11pt; color: #111; line-height: 1.4; }
+    h1 { text-align: center; font-size: 16pt; margin: 0 0 4px; letter-spacing: 1px; }
+    .sub { text-align: center; font-size: 10pt; color: #444; margin-bottom: 16px; }
+    table.info { width: 100%; border-collapse: collapse; margin-bottom: 14px; }
+    table.info td { padding: 4px 6px; vertical-align: top; }
+    table.info td.label { width: 140px; font-weight: bold; }
+    table.info td.sep { width: 12px; }
+    .box { border: 1.5px solid #222; padding: 10px 12px; margin-bottom: 14px; }
+    .box h3 { margin: 0 0 6px; font-size: 11pt; text-transform: uppercase; }
+    .box ul { margin: 0; padding-left: 18px; }
+    table.grid { width: 100%; border-collapse: collapse; margin-bottom: 14px; font-size: 10pt; }
+    table.grid th, table.grid td { border: 1px solid #333; padding: 6px 8px; }
+    table.grid th { background: #e8eef5; text-align: left; }
+    .total { font-size: 12pt; font-weight: bold; margin: 8px 0; }
+    .footer { margin-top: 24px; font-size: 9pt; color: #666; text-align: center; }
+    @media print {
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .no-print { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <h1>PROPOSAL AKTIVITAS PROMOSI</h1>
+  <div class="sub">Marketing Budget System · Cetak Otomatis</div>
+
+  <table class="info">
+    <tr>
+      <td class="label">No. Program</td><td class="sep">:</td><td>${shortId(p.id)}</td>
+      <td class="label">Tanggal Pengajuan</td><td class="sep">:</td><td>${tgl}</td>
+    </tr>
+    <tr>
+      <td class="label">Brand</td><td class="sep">:</td><td>${p.brand || '-'}</td>
+      <td class="label">Status</td><td class="sep">:</td><td><strong>${p.status || '-'}</strong></td>
+    </tr>
+    <tr>
+      <td class="label">Nama Program</td><td class="sep">:</td><td colspan="4"><strong>${(p.name || '').replace(/</g,'&lt;')}</strong>${isNeg ? ' <span style="color:#c2410c">[PEMBALIK]</span>' : ''}</td>
+    </tr>
+    <tr>
+      <td class="label">Periode</td><td class="sep">:</td><td>${periode}</td>
+      <td class="label">Level Approval</td><td class="sep">:</td><td>Level ${p.required_level || '-'}</td>
+    </tr>
+    ${refId ? '<tr><td class="label">No. Referensi</td><td class="sep">:</td><td colspan="4">' + shortId(refId) + ' (Program Pembalik)</td></tr>' : ''}
+  </table>
+
+  <div class="box">
+    <h3>Keterangan Kegiatan</h3>
+    <div>${desc ? desc.replace(/\n/g, '<br/>').replace(/</g,'&lt;') : '<em>Tidak ada keterangan</em>'}</div>
+  </div>
+
+  <div class="box">
+    <h3>Estimasi Budget</h3>
+    <div class="total">Total Estimasi Dana : ${formatRp(p.budget_amount)}</div>
+  </div>
+
+  <h3 style="margin:0 0 6px;font-size:11pt;">RIWAYAT APPROVAL</h3>
+  <table class="grid">
+    <thead>
+      <tr>
+        <th>Level</th>
+        <th>Nama</th>
+        <th>Aksi</th>
+        <th>Waktu</th>
+        <th>Catatan</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${approvalRows}
+    </tbody>
+  </table>
+
+  <div class="footer">
+    Dicetak dari Marketing Budget System · ${new Date().toLocaleString('id-ID')}
+  </div>
+
+  <div class="no-print" style="margin-top:20px;text-align:center;">
+    <button onclick="window.print()" style="padding:10px 24px;font-size:14px;cursor:pointer;background:#1F4E79;color:#fff;border:none;border-radius:6px;">Cetak / Simpan PDF</button>
+    <button onclick="window.close()" style="padding:10px 24px;font-size:14px;cursor:pointer;margin-left:8px;">Tutup</button>
+  </div>
+</body>
+</html>`
+
+    const w = window.open('', '_blank', 'width=900,height=700')
+    if (!w) {
+      alert('Popup diblokir. Izinkan popup untuk situs ini, lalu coba lagi.')
+      return
+    }
+    w.document.write(html)
+    w.document.close()
+  }
+
+
   const handleSubmit = (e) => {
     e.preventDefault()
     saveProgram(false)
@@ -495,6 +613,17 @@ export default function Programs({ user }) {
                       <td style={styles.td}>
                         <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
                           <button onClick={() => openDetail(p)} style={styles.smallBtn}>Detail</button>
+                          <button onClick={async () => {
+                            const { data: logData } = await supabase.from('approval_logs').select('*').eq('program_id', p.id).order('created_at', { ascending: true })
+                            const logs = logData || []
+                            const userIds = [...new Set(logs.map(l => l.user_id).filter(Boolean))]
+                            let map = {}
+                            if (userIds.length > 0) {
+                              const { data: usersData } = await supabase.from('users').select('id, full_name, username').in('id', userIds)
+                              ;(usersData || []).forEach(u => { map[u.id] = u })
+                            }
+                            printProgram(p, logs, map)
+                          }} style={styles.smallBtn}>Cetak</button>
                           {(p.status === 'Draft' || p.status === 'Revisi') && canCreate && (
                             <button onClick={() => startEdit(p)} style={styles.smallBtn}>Edit</button>
                           )}
@@ -563,7 +692,14 @@ export default function Programs({ user }) {
                 })}
               </div>
             )}
-            <div style={{ marginTop: '1.25rem' }}>
+            <div style={{ marginTop: '1.25rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => printProgram(detailProgram, detailLogs, detailUsers)}
+                style={styles.primaryBtn}
+              >
+                Cetak / PDF
+              </button>
               <button type="button" onClick={() => setDetailProgram(null)} style={styles.secondaryBtn}>Tutup</button>
             </div>
           </div>
