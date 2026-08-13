@@ -94,14 +94,31 @@ export default function Budgeting({ user }) {
     })
     setRealized(realMap)
 
-    // Load budget change logs (admin only needs, but load for allowed brands)
+    // Load budget change logs
     const { data: logData } = await supabase
       .from('budget_logs')
       .select('*')
       .eq('year', year)
       .order('created_at', { ascending: false })
       .limit(100)
-    setLogs(logData || [])
+
+    let enriched = logData || []
+    const uids = [...new Set(enriched.map(l => l.user_id).filter(Boolean))]
+    if (uids.length > 0) {
+      const { data: usersData } = await supabase
+        .from('users')
+        .select('id, full_name, username')
+        .in('id', uids)
+      const umap = {}
+      ;(usersData || []).forEach(u => { umap[u.id] = u })
+      enriched = enriched.map(l => ({
+        ...l,
+        user_name: umap[l.user_id]
+          ? (umap[l.user_id].full_name || umap[l.user_id].username)
+          : '-'
+      }))
+    }
+    setLogs(enriched)
 
     setLoading(false)
   }
@@ -309,6 +326,7 @@ export default function Budgeting({ user }) {
                 <thead>
                   <tr>
                     <th style={{ ...styles.th, textAlign: 'left' }}>Waktu</th>
+                    <th style={{ ...styles.th, textAlign: 'left' }}>User</th>
                     <th style={{ ...styles.th, textAlign: 'left' }}>Brand</th>
                     <th style={{ ...styles.th, textAlign: 'left' }}>Field</th>
                     <th style={{ ...styles.th, textAlign: 'right' }}>Nilai Lama</th>
@@ -321,6 +339,7 @@ export default function Budgeting({ user }) {
                       <td style={{ ...styles.td, textAlign: 'left', fontSize: '0.8rem' }}>
                         {l.created_at ? new Date(l.created_at).toLocaleString('id-ID') : '-'}
                       </td>
+                      <td style={{ ...styles.td, textAlign: 'left' }}>{l.user_name || '-'}</td>
                       <td style={{ ...styles.td, textAlign: 'left' }}>{l.brand}</td>
                       <td style={{ ...styles.td, textAlign: 'left' }}>
                         {l.field_type === 'allocation' ? 'Alokasi Tahun' : 'Rencana ' + (MONTHS[(l.month || 1) - 1] || '')}
