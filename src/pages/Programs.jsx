@@ -42,7 +42,19 @@ export default function Programs({ user }) {
     description: '',
     budget_amount: '',
     period_start: '',
-    period_end: ''
+    period_end: '',
+    no_pap: '',
+    outlet: '',
+    distributor: '',
+    region: '',
+    area: '',
+    tujuan: '',
+    mekanisme: '',
+    biaya_program: '',
+    ppn: '',
+    biaya_mailer: '',
+    biaya_vendor: '',
+    estimasi_omzet: ''
   })
 
   const isAdmin = user.role === 'administrator'
@@ -83,6 +95,12 @@ export default function Programs({ user }) {
     setForm(prev => ({ ...prev, budget_amount: raw }))
   }
 
+  const handleMoneyChange = (e) => {
+    const { name, value } = e.target
+    const raw = String(value).replace(/\D/g, '')
+    setForm(prev => ({ ...prev, [name]: raw }))
+  }
+
   const resetForm = () => {
     setForm({
       brand: allowedBrands[0] || '',
@@ -90,7 +108,19 @@ export default function Programs({ user }) {
       description: '',
       budget_amount: '',
       period_start: '',
-      period_end: ''
+      period_end: '',
+      no_pap: '',
+      outlet: '',
+      distributor: '',
+      region: '',
+      area: '',
+      tujuan: '',
+      mekanisme: '',
+      biaya_program: '',
+      ppn: '',
+      biaya_mailer: '',
+      biaya_vendor: '',
+      estimasi_omzet: ''
     })
     setShowForm(false)
     setEditingId(null)
@@ -107,7 +137,19 @@ export default function Programs({ user }) {
       description: '',
       budget_amount: '',
       period_start: '',
-      period_end: ''
+      period_end: '',
+      no_pap: '',
+      outlet: '',
+      distributor: '',
+      region: '',
+      area: '',
+      tujuan: '',
+      mekanisme: '',
+      biaya_program: '',
+      ppn: '',
+      biaya_mailer: '',
+      biaya_vendor: '',
+      estimasi_omzet: ''
     })
     setShowForm(true)
     setSuccess('')
@@ -127,7 +169,19 @@ export default function Programs({ user }) {
       description: p.description || '',
       budget_amount: String(Math.abs(p.budget_amount || 0)),
       period_start: p.period_start || '',
-      period_end: p.period_end || ''
+      period_end: p.period_end || '',
+      no_pap: p.no_pap || '',
+      outlet: p.outlet || '',
+      distributor: p.distributor || '',
+      region: p.region || '',
+      area: p.area || '',
+      tujuan: p.tujuan || '',
+      mekanisme: p.mekanisme || '',
+      biaya_program: p.biaya_program ? String(p.biaya_program) : '',
+      ppn: p.ppn ? String(p.ppn) : '',
+      biaya_mailer: p.biaya_mailer ? String(p.biaya_mailer) : '',
+      biaya_vendor: p.biaya_vendor ? String(p.biaya_vendor) : '',
+      estimasi_omzet: p.estimasi_omzet ? String(p.estimasi_omzet) : ''
     })
     setShowForm(true)
     setSuccess('')
@@ -143,7 +197,19 @@ export default function Programs({ user }) {
       description: 'Pembalik dari program No. ' + shortId(p.id) + ' — ' + p.name,
       budget_amount: String(Math.abs(p.budget_amount || 0)),
       period_start: p.period_start || '',
-      period_end: p.period_end || ''
+      period_end: p.period_end || '',
+      no_pap: p.no_pap || '',
+      outlet: p.outlet || '',
+      distributor: p.distributor || '',
+      region: p.region || '',
+      area: p.area || '',
+      tujuan: p.tujuan || '',
+      mekanisme: p.mekanisme || '',
+      biaya_program: p.biaya_program ? String(Math.abs(p.biaya_program)) : '',
+      ppn: p.ppn ? String(Math.abs(p.ppn)) : '',
+      biaya_mailer: p.biaya_mailer ? String(Math.abs(p.biaya_mailer)) : '',
+      biaya_vendor: p.biaya_vendor ? String(Math.abs(p.biaya_vendor)) : '',
+      estimasi_omzet: p.estimasi_omzet ? String(p.estimasi_omzet) : ''
     })
     setShowForm(true)
     setSuccess('')
@@ -199,6 +265,18 @@ export default function Programs({ user }) {
         budget_amount: amount,
         period_start: form.period_start || null,
         period_end: form.period_end || null,
+        no_pap: form.no_pap.trim() || null,
+        outlet: form.outlet.trim() || null,
+        distributor: form.distributor.trim() || null,
+        region: form.region.trim() || null,
+        area: form.area.trim() || null,
+        tujuan: form.tujuan.trim() || null,
+        mekanisme: form.mekanisme.trim() || null,
+        biaya_program: form.biaya_program ? Number(form.biaya_program) : 0,
+        ppn: form.ppn ? Number(form.ppn) : 0,
+        biaya_mailer: form.biaya_mailer ? Number(form.biaya_mailer) : 0,
+        biaya_vendor: form.biaya_vendor ? Number(form.biaya_vendor) : 0,
+        estimasi_omzet: form.estimasi_omzet ? Number(form.estimasi_omzet) : 0,
         status: asDraft ? 'Draft' : 'Menunggu Approval',
         current_level: 0,
         required_level: requiredLevel,
@@ -228,6 +306,18 @@ export default function Programs({ user }) {
         budget_amount: amount,
         period_start: form.period_start || null,
         period_end: form.period_end || null,
+        no_pap: form.no_pap.trim() || null,
+        outlet: form.outlet.trim() || null,
+        distributor: form.distributor.trim() || null,
+        region: form.region.trim() || null,
+        area: form.area.trim() || null,
+        tujuan: form.tujuan.trim() || null,
+        mekanisme: form.mekanisme.trim() || null,
+        biaya_program: form.biaya_program ? Number(form.biaya_program) : 0,
+        ppn: form.ppn ? Number(form.ppn) : 0,
+        biaya_mailer: form.biaya_mailer ? Number(form.biaya_mailer) : 0,
+        biaya_vendor: form.biaya_vendor ? Number(form.biaya_vendor) : 0,
+        estimasi_omzet: form.estimasi_omzet ? Number(form.estimasi_omzet) : 0,
         status: asDraft ? 'Draft' : 'Menunggu Approval',
         current_level: 0,
         required_level: requiredLevel,
@@ -333,15 +423,26 @@ export default function Programs({ user }) {
       <td class="label">Tanggal Pengajuan</td><td class="sep">:</td><td>${tgl}</td>
     </tr>
     <tr>
-      <td class="label">Brand</td><td class="sep">:</td><td>${p.brand || '-'}</td>
+      <td class="label">No. PAP</td><td class="sep">:</td><td>${p.no_pap || '-'}</td>
       <td class="label">Status</td><td class="sep">:</td><td><strong>${p.status || '-'}</strong></td>
+    </tr>
+    <tr>
+      <td class="label">Brand</td><td class="sep">:</td><td>${p.brand || '-'}</td>
+      <td class="label">Level Approval</td><td class="sep">:</td><td>Level ${p.required_level || '-'}</td>
     </tr>
     <tr>
       <td class="label">Nama Program</td><td class="sep">:</td><td colspan="4"><strong>${(p.name || '').replace(/</g,'&lt;')}</strong>${isNeg ? ' <span style="color:#c2410c">[PEMBALIK]</span>' : ''}</td>
     </tr>
     <tr>
-      <td class="label">Periode</td><td class="sep">:</td><td>${periode}</td>
-      <td class="label">Level Approval</td><td class="sep">:</td><td>Level ${p.required_level || '-'}</td>
+      <td class="label">Outlet</td><td class="sep">:</td><td>${p.outlet || '-'}</td>
+      <td class="label">Distributor</td><td class="sep">:</td><td>${p.distributor || '-'}</td>
+    </tr>
+    <tr>
+      <td class="label">Region</td><td class="sep">:</td><td>${p.region || '-'}</td>
+      <td class="label">Area / Depo</td><td class="sep">:</td><td>${p.area || '-'}</td>
+    </tr>
+    <tr>
+      <td class="label">Periode</td><td class="sep">:</td><td colspan="4">${periode}</td>
     </tr>
     ${refId ? '<tr><td class="label">No. Referensi</td><td class="sep">:</td><td colspan="4">' + shortId(refId) + ' (Program Pembalik)</td></tr>' : ''}
   </table>
@@ -351,9 +452,19 @@ export default function Programs({ user }) {
     <div>${desc ? desc.replace(/\n/g, '<br/>').replace(/</g,'&lt;') : '<em>Tidak ada keterangan</em>'}</div>
   </div>
 
+  ${(p.tujuan || '').trim() ? '<div class="box"><h3>Tujuan</h3><div>' + String(p.tujuan).replace(/\n/g,'<br/>').replace(/</g,'&lt;') + '</div></div>' : ''}
+  ${(p.mekanisme || '').trim() ? '<div class="box"><h3>Mekanisme</h3><div>' + String(p.mekanisme).replace(/\n/g,'<br/>').replace(/</g,'&lt;') + '</div></div>' : ''}
+
   <div class="box">
     <h3>Estimasi Budget</h3>
-    <div class="total">Total Estimasi Dana : ${formatRp(p.budget_amount)}</div>
+    <table class="info" style="margin:0">
+      <tr><td class="label">Biaya Program</td><td class="sep">:</td><td>${formatRp(p.biaya_program || 0)}</td></tr>
+      <tr><td class="label">PPN</td><td class="sep">:</td><td>${formatRp(p.ppn || 0)}</td></tr>
+      <tr><td class="label">Biaya Mailer</td><td class="sep">:</td><td>${formatRp(p.biaya_mailer || 0)}</td></tr>
+      <tr><td class="label">Biaya Vendor</td><td class="sep">:</td><td>${formatRp(p.biaya_vendor || 0)}</td></tr>
+      <tr><td class="label">Estimasi Omzet</td><td class="sep">:</td><td>${formatRp(p.estimasi_omzet || 0)}</td></tr>
+    </table>
+    <div class="total" style="margin-top:8px">Total Estimasi Dana (Approval) : ${formatRp(p.budget_amount)}</div>
   </div>
 
   <h3 style="margin:0 0 6px;font-size:11pt;">RIWAYAT APPROVAL</h3>
@@ -502,9 +613,70 @@ export default function Programs({ user }) {
                 name="description"
                 value={form.description}
                 onChange={handleChange}
-                style={{ ...styles.input, minHeight: '80px', resize: 'vertical' }}
+                style={{ ...styles.input, minHeight: '70px', resize: 'vertical' }}
               />
             </div>
+
+            <h4 style={{ margin: '1.25rem 0 0.75rem', color: '#1F4E79', fontSize: '0.95rem' }}>Informasi Proposal (opsional)</h4>
+            <div style={styles.formGrid}>
+              <div style={styles.field}>
+                <label style={styles.label}>No. PAP</label>
+                <input name="no_pap" value={form.no_pap} onChange={handleChange} style={styles.input} placeholder="Contoh: 152/MTI/JAWA/..." />
+              </div>
+              <div style={styles.field}>
+                <label style={styles.label}>Nama Outlet</label>
+                <input name="outlet" value={form.outlet} onChange={handleChange} style={styles.input} />
+              </div>
+              <div style={styles.field}>
+                <label style={styles.label}>Nama Distributor</label>
+                <input name="distributor" value={form.distributor} onChange={handleChange} style={styles.input} />
+              </div>
+              <div style={styles.field}>
+                <label style={styles.label}>Region</label>
+                <input name="region" value={form.region} onChange={handleChange} style={styles.input} placeholder="Contoh: JABODETABEK" />
+              </div>
+              <div style={styles.field}>
+                <label style={styles.label}>Area / Depo</label>
+                <input name="area" value={form.area} onChange={handleChange} style={styles.input} />
+              </div>
+            </div>
+
+            <div style={{ ...styles.field, marginTop: '1rem' }}>
+              <label style={styles.label}>Tujuan</label>
+              <textarea name="tujuan" value={form.tujuan} onChange={handleChange} style={{ ...styles.input, minHeight: '60px', resize: 'vertical' }} placeholder="Satu baris per tujuan, atau paragraf" />
+            </div>
+            <div style={{ ...styles.field, marginTop: '0.75rem' }}>
+              <label style={styles.label}>Mekanisme</label>
+              <textarea name="mekanisme" value={form.mekanisme} onChange={handleChange} style={{ ...styles.input, minHeight: '60px', resize: 'vertical' }} placeholder="Cara kerja / aturan biaya program" />
+            </div>
+
+            <h4 style={{ margin: '1.25rem 0 0.75rem', color: '#1F4E79', fontSize: '0.95rem' }}>Breakdown Budget (opsional)</h4>
+            <div style={styles.formGrid}>
+              <div style={styles.field}>
+                <label style={styles.label}>Biaya Program (Rp)</label>
+                <input name="biaya_program" value={form.biaya_program ? Number(form.biaya_program).toLocaleString('id-ID') : ''} onChange={handleMoneyChange} style={styles.input} placeholder="0" />
+              </div>
+              <div style={styles.field}>
+                <label style={styles.label}>PPN (Rp)</label>
+                <input name="ppn" value={form.ppn ? Number(form.ppn).toLocaleString('id-ID') : ''} onChange={handleMoneyChange} style={styles.input} placeholder="0" />
+              </div>
+              <div style={styles.field}>
+                <label style={styles.label}>Biaya Mailer (Rp)</label>
+                <input name="biaya_mailer" value={form.biaya_mailer ? Number(form.biaya_mailer).toLocaleString('id-ID') : ''} onChange={handleMoneyChange} style={styles.input} placeholder="0" />
+              </div>
+              <div style={styles.field}>
+                <label style={styles.label}>Biaya Vendor (Rp)</label>
+                <input name="biaya_vendor" value={form.biaya_vendor ? Number(form.biaya_vendor).toLocaleString('id-ID') : ''} onChange={handleMoneyChange} style={styles.input} placeholder="0" />
+              </div>
+              <div style={styles.field}>
+                <label style={styles.label}>Estimasi Omzet (Rp)</label>
+                <input name="estimasi_omzet" value={form.estimasi_omzet ? Number(form.estimasi_omzet).toLocaleString('id-ID') : ''} onChange={handleMoneyChange} style={styles.input} placeholder="0" />
+              </div>
+            </div>
+            <p style={{ fontSize: '0.78rem', color: '#9ca3af', marginTop: '0.5rem' }}>
+              Estimasi Dana di atas tetap dipakai untuk approval. Breakdown ini untuk detail cetak/proposal.
+            </p>
+
             {form.budget_amount && !isReversalForm && (
               <p style={{ marginTop: '0.75rem', fontSize: '0.85rem', color: '#6b7280' }}>
                 Level Approval: <strong>Level {getRequiredLevel(form.budget_amount)}</strong>
@@ -657,12 +829,44 @@ export default function Programs({ user }) {
                 {detailProgram.brand} · {formatRp(detailProgram.budget_amount)} · {detailProgram.status}
               </div>
               <div style={{ fontSize: '0.8rem', color: '#9ca3af', marginTop: '0.25rem' }}>
-                No: {shortId(detailProgram.id)} · Level {detailProgram.required_level}
+                No: {shortId(detailProgram.id)}
+                {detailProgram.no_pap ? ' · PAP: ' + detailProgram.no_pap : ''}
+                {' · Level ' + detailProgram.required_level}
                 {detailProgram.created_at ? ' · ' + new Date(detailProgram.created_at).toLocaleString('id-ID') : ''}
               </div>
+              {(detailProgram.outlet || detailProgram.distributor) && (
+                <div style={{ fontSize: '0.85rem', color: '#6b7280', marginTop: '0.35rem' }}>
+                  {detailProgram.outlet && <span>Outlet: {detailProgram.outlet}</span>}
+                  {detailProgram.outlet && detailProgram.distributor && ' · '}
+                  {detailProgram.distributor && <span>Distributor: {detailProgram.distributor}</span>}
+                </div>
+              )}
+              {(detailProgram.region || detailProgram.area) && (
+                <div style={{ fontSize: '0.85rem', color: '#6b7280' }}>
+                  {[detailProgram.region, detailProgram.area].filter(Boolean).join(' · ')}
+                </div>
+              )}
               {detailProgram.description && (
                 <div style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: '#6b7280' }}>
                   {detailProgram.description.replace(/\[REF:[^\]]+\]/, '').trim()}
+                </div>
+              )}
+              {detailProgram.tujuan && (
+                <div style={{ marginTop: '0.5rem', fontSize: '0.85rem' }}>
+                  <strong>Tujuan:</strong>
+                  <div style={{ color: '#6b7280', whiteSpace: 'pre-wrap' }}>{detailProgram.tujuan}</div>
+                </div>
+              )}
+              {detailProgram.mekanisme && (
+                <div style={{ marginTop: '0.5rem', fontSize: '0.85rem' }}>
+                  <strong>Mekanisme:</strong>
+                  <div style={{ color: '#6b7280', whiteSpace: 'pre-wrap' }}>{detailProgram.mekanisme}</div>
+                </div>
+              )}
+              {(Number(detailProgram.biaya_program) > 0 || Number(detailProgram.ppn) > 0 || Number(detailProgram.biaya_mailer) > 0 || Number(detailProgram.biaya_vendor) > 0) && (
+                <div style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: '#6b7280' }}>
+                  Program: {formatRp(detailProgram.biaya_program)} · PPN: {formatRp(detailProgram.ppn)} · Mailer: {formatRp(detailProgram.biaya_mailer)} · Vendor: {formatRp(detailProgram.biaya_vendor)}
+                  {Number(detailProgram.estimasi_omzet) > 0 && <span> · Omzet: {formatRp(detailProgram.estimasi_omzet)}</span>}
                 </div>
               )}
             </div>
