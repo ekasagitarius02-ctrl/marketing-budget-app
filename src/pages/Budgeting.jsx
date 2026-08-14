@@ -14,6 +14,15 @@ function formatRp(num) {
   return (n < 0 ? '-Rp ' : 'Rp ') + formatted
 }
 
+function getRequiredLevel(amount) {
+  const n = Math.abs(Number(amount) || 0)
+  if (n <= 5000000) return 1
+  if (n <= 15000000) return 2
+  if (n <= 50000000) return 3
+  if (n <= 150000000) return 4
+  return 5
+}
+
 export default function Budgeting({ user }) {
   const currentYear = new Date().getFullYear()
   const [year, setYear] = useState(currentYear)
@@ -27,6 +36,11 @@ export default function Budgeting({ user }) {
   const [editMode, setEditMode] = useState(false)
   const [logs, setLogs] = useState([])
   const [showLogs, setShowLogs] = useState(false)
+  const [addendums, setAddendums] = useState([])
+  const [showAddendumForm, setShowAddendumForm] = useState(false)
+  const [adForm, setAdForm] = useState({ brand: '', amount: '', reason: '' })
+  const [adError, setAdError] = useState('')
+  const [adSuccess, setAdSuccess] = useState('')
 
   const isAdmin = user.role === 'administrator'
   const isAdminBrand = user.role === 'admin_brand'
@@ -119,6 +133,18 @@ export default function Budgeting({ user }) {
       }))
     }
     setLogs(enriched)
+
+    // Load addendums for this year
+    const { data: adData } = await supabase
+      .from('addendums')
+      .select('*')
+      .eq('year', year)
+      .order('created_at', { ascending: false })
+    let ads = adData || []
+    if (!isAdmin && allowedBrands.length > 0) {
+      ads = ads.filter(a => allowedBrands.includes(a.brand))
+    }
+    setAddendums(ads)
 
     setLoading(false)
   }
@@ -272,6 +298,44 @@ export default function Budgeting({ user }) {
     return cumPlan - cumReal
   }
 
+  const submitAddendum = async (e) => {
+    e.preventDefault()
+    setAdError('')
+    setAdSuccess('')
+    if (!adForm.brand || !adForm.amount) {
+      setAdError('Brand dan nominal wajib diisi')
+      return
+    }
+    const amount = Number(adForm.amount)
+    if (amount <= 0) {
+      setAdError('Nominal harus lebih dari 0')
+      return
+    }
+    if (!isAdmin && !allowedBrands.includes(adForm.brand)) {
+      setAdError('Tidak berhak mengajukan untuk brand ini')
+      return
+    }
+    const requiredLevel = getRequiredLevel(amount)
+    const { error } = await supabase.from('addendums').insert([{
+      brand: adForm.brand,
+      year,
+      amount,
+      reason: adForm.reason.trim() || null,
+      status: 'Menunggu Approval',
+      current_level: 0,
+      required_level: requiredLevel,
+      created_by: user.id
+    }])
+    if (error) {
+      setAdError(error.message || 'Gagal mengajukan addendum')
+      return
+    }
+    setAdSuccess('Addendum berhasil diajukan dan menunggu approval')
+    setAdForm({ brand: allowedBrands[0] || '', amount: '', reason: '' })
+    setShowAddendumForm(false)
+    loadData()
+  }
+
   const totalPlan = (brand) => {
     let t = 0
     for (let m = 1; m <= 12; m++) t += (monthly[brand] && monthly[brand][m]) || 0
@@ -346,6 +410,121 @@ export default function Budgeting({ user }) {
                       </td>
                       <td style={{ ...styles.td, textAlign: 'right' }}>{formatRp(l.old_value)}</td>
                       <td style={{ ...styles.td, textAlign: 'right', fontWeight: 600 }}>{formatRp(l.new_value)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Addendum section */}
+      {canEdit && (
+        <div style={styles.card}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+            <h3 style={{ color: '#1F4E79' }}>Addendum Budget</h3>
+            <button
+              type="button"
+              onClick={() => {
+                setShowAddendumForm(!showAddendumForm)
+                setAdForm({ brand: allowedBrands[0] || '', amount: '', reason: '' })
+                setAdError('')
+                setAdSuccess('')
+              }}
+              style={styles.primaryBtn}
+            >
+              {showAddendumForm ? 'Tutup' : '+ Ajukan Addendum'}
+            </button>
+          </div>
+          <p style={{ fontSize: '0.85rem', color: '#6b7280', marginBottom: '0.75rem' }}>
+            Gunakan addendum jika sisa budget tidak cukup. Setelah di-approve, alokasi tahunan brand akan bertambah.
+          </p>
+          {adSuccess && <div style={styles.success}>{adSuccess}</div>}
+          {adError && <div style={styles.error}>{adError}</div>}
+          {showAddendumForm && (
+            <form onSubmit={submitAddendum} style={{ marginBottom: '1rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem' }}>
+                <div>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#6b7280' }}>Brand *</label>
+                  <select
+                    value={adForm.brand}
+                    onChange={e => setAdForm(prev => ({ ...prev, brand: e.target.value }))}
+                    style={{ ...styles.input, width: '100%', marginTop: '0.25rem' }}
+                    required
+                  >
+                    <option value="">Pilih Brand</option>
+                    {allowedBrands.map(b => <option key={b} value={b}>{b}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#6b7280' }}>Nominal Tambahan (Rp) *</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', marginTop: '0.25rem' }}>
+                    <span style={{ fontWeight: 600, color: '#1F4E79' }}>Rp</span>
+                    <input
+                      value={adForm.amount ? Number(adForm.amount).toLocaleString('id-ID') : ''}
+                      onChange={e => setAdForm(prev => ({ ...prev, amount: e.target.value.replace(/\D/g, '') }))}
+                      style={{ ...styles.input, flex: 1 }}
+                      required
+                      placeholder="0"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div style={{ marginTop: '0.75rem' }}>
+                <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#6b7280' }}>Alasan</label>
+                <textarea
+                  value={adForm.reason}
+                  onChange={e => setAdForm(prev => ({ ...prev, reason: e.target.value }))}
+                  style={{ ...styles.input, width: '100%', minHeight: '60px', marginTop: '0.25rem' }}
+                  placeholder="Kenapa butuh tambahan budget?"
+                />
+              </div>
+              {adForm.amount && (
+                <p style={{ fontSize: '0.85rem', color: '#6b7280', marginTop: '0.5rem' }}>
+                  Level Approval: <strong>Level {getRequiredLevel(adForm.amount)}</strong>
+                </p>
+              )}
+              <button type="submit" style={{ ...styles.primaryBtn, marginTop: '0.75rem' }}>Kirim Addendum</button>
+            </form>
+          )}
+          {addendums.length === 0 ? (
+            <p style={{ color: '#6b7280', fontSize: '0.9rem' }}>Belum ada pengajuan addendum.</p>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={styles.table}>
+                <thead>
+                  <tr>
+                    <th style={{ ...styles.th, textAlign: 'left' }}>Tanggal</th>
+                    <th style={{ ...styles.th, textAlign: 'left' }}>Brand</th>
+                    <th style={{ ...styles.th, textAlign: 'right' }}>Nominal</th>
+                    <th style={{ ...styles.th, textAlign: 'left' }}>Level</th>
+                    <th style={{ ...styles.th, textAlign: 'left' }}>Status</th>
+                    <th style={{ ...styles.th, textAlign: 'left' }}>Alasan</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {addendums.map(a => (
+                    <tr key={a.id}>
+                      <td style={{ ...styles.td, textAlign: 'left', fontSize: '0.8rem' }}>
+                        {a.created_at ? new Date(a.created_at).toLocaleDateString('id-ID') : '-'}
+                      </td>
+                      <td style={{ ...styles.td, textAlign: 'left' }}>{a.brand}</td>
+                      <td style={{ ...styles.td, textAlign: 'right', fontWeight: 600 }}>{formatRp(a.amount)}</td>
+                      <td style={{ ...styles.td, textAlign: 'left' }}>L{a.required_level}</td>
+                      <td style={{ ...styles.td, textAlign: 'left' }}>
+                        <span style={{
+                          padding: '0.15rem 0.5rem',
+                          borderRadius: '10px',
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          background: a.status === 'Approved' ? '#d1fae5' : a.status === 'Rejected' ? '#fee2e2' : '#fef3c7',
+                          color: a.status === 'Approved' ? '#065f46' : a.status === 'Rejected' ? '#991b1b' : '#92400e'
+                        }}>{a.status}</span>
+                      </td>
+                      <td style={{ ...styles.td, textAlign: 'left', fontSize: '0.8rem', color: '#6b7280' }}>
+                        {(a.reason || '-').slice(0, 60)}{(a.reason || '').length > 60 ? '...' : ''}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
