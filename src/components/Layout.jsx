@@ -1,11 +1,76 @@
+import { useState, useEffect } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
+import { supabase } from '../supabase'
 
 export default function Layout({ user, onLogout }) {
+  const [pendingCount, setPendingCount] = useState(0)
+
   const roleLabel = {
     administrator: 'Administrator',
     admin_brand: 'Admin Brand',
     approver: `Approver Level ${user.approver_level || '-'}`
   }
+
+  useEffect(() => {
+    if (user.role !== 'approver') return
+
+    let cancelled = false
+
+    const loadPending = async () => {
+      const level = Number(user.approver_level) || 0
+      const isHighLevel = level >= 4
+      const brandAccess = user.brand_access || []
+
+      const { data: progs } = await supabase
+        .from('programs')
+        .select('id, brand, current_level, required_level, status')
+        .in('status', ['Menunggu Approval', 'Revisi'])
+
+      let list = progs || []
+      if (!isHighLevel && !brandAccess.includes('Semua')) {
+        list = list.filter(p => brandAccess.includes(p.brand))
+      }
+
+      // Filter by next level matching this user
+      const candidates = list.filter(p => {
+        const next = Math.max(1, (p.current_level || 0) + 1)
+        return level === Math.min(next, p.required_level || 1)
+      })
+
+      if (candidates.length === 0) {
+        if (!cancelled) setPendingCount(0)
+        return
+      }
+
+      // For level 1: exclude programs this user already approved
+      if (level === 1) {
+        const ids = candidates.map(p => p.id)
+        const { data: logs } = await supabase
+          .from('approval_logs')
+          .select('program_id, user_id, action, level')
+          .in('program_id', ids)
+          .eq('level', 1)
+          .eq('action', 'Approve')
+
+        const already = new Set(
+          (logs || [])
+            .filter(l => l.user_id === user.id)
+            .map(l => l.program_id)
+        )
+        const waiting = candidates.filter(p => !already.has(p.id))
+        if (!cancelled) setPendingCount(waiting.length)
+      } else {
+        if (!cancelled) setPendingCount(candidates.length)
+      }
+    }
+
+    loadPending()
+    const interval = setInterval(loadPending, 30000) // refresh tiap 30 detik
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
+  }, [user])
 
   const linkStyle = ({ isActive }) => ({
     padding: '0.85rem 1.5rem',
@@ -17,7 +82,10 @@ export default function Layout({ user, onLogout }) {
     fontSize: '0.95rem',
     color: 'white',
     textDecoration: 'none',
-    display: 'block'
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.5rem'
   })
 
   return (
@@ -36,7 +104,12 @@ export default function Layout({ user, onLogout }) {
           )}
 
           {user.role === 'approver' && (
-            <NavLink to="/approval" style={linkStyle}>Approval</NavLink>
+            <NavLink to="/approval" style={linkStyle}>
+              <span>Approval</span>
+              {pendingCount > 0 && (
+                <span style={styles.badge}>{pendingCount > 99 ? '99+' : pendingCount}</span>
+              )}
+            </NavLink>
           )}
 
           {(user.role === 'administrator' || user.role === 'admin_brand') && (
@@ -80,6 +153,20 @@ const styles = {
     marginBottom: '1rem'
   },
   nav: { flex: 1, display: 'flex', flexDirection: 'column', gap: '0.25rem' },
+  badge: {
+    background: '#ef4444',
+    color: 'white',
+    fontSize: '0.7rem',
+    fontWeight: 700,
+    minWidth: '20px',
+    height: '20px',
+    borderRadius: '10px',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '0 6px',
+    lineHeight: 1
+  },
   userBox: {
     padding: '1rem 1.5rem',
     borderTop: '1px solid rgba(255,255,255,0.15)',
