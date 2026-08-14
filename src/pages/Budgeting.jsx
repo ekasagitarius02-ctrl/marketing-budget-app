@@ -41,6 +41,10 @@ export default function Budgeting({ user }) {
   const [adForm, setAdForm] = useState({ brand: '', amount: '', reason: '' })
   const [adError, setAdError] = useState('')
   const [adSuccess, setAdSuccess] = useState('')
+  const [showShift, setShowShift] = useState(false)
+  const [shiftForm, setShiftForm] = useState({ brand: '', fromMonth: 1, toMonth: 2, amount: '' })
+  const [shiftError, setShiftError] = useState('')
+  const [shiftSuccess, setShiftSuccess] = useState('')
 
   const isAdmin = user.role === 'administrator'
   const isAdminBrand = user.role === 'admin_brand'
@@ -298,6 +302,99 @@ export default function Budgeting({ user }) {
     return cumPlan - cumReal
   }
 
+  const submitShift = async (e) => {
+    e.preventDefault()
+    setShiftError('')
+    setShiftSuccess('')
+    const { brand, fromMonth, toMonth, amount } = shiftForm
+    if (!brand || !amount) {
+      setShiftError('Brand dan nominal wajib diisi')
+      return
+    }
+    const fromM = Number(fromMonth)
+    const toM = Number(toMonth)
+    if (fromM === toM) {
+      setShiftError('Bulan sumber dan tujuan harus berbeda')
+      return
+    }
+    const amt = Number(amount)
+    if (amt <= 0) {
+      setShiftError('Nominal harus lebih dari 0')
+      return
+    }
+    if (!isAdmin && !allowedBrands.includes(brand)) {
+      setShiftError('Tidak berhak untuk brand ini')
+      return
+    }
+
+    const fromPlan = (monthly[brand] && monthly[brand][fromM]) || 0
+    if (amt > fromPlan) {
+      setShiftError('Nominal melebihi rencana bulan sumber (' + formatRp(fromPlan) + ')')
+      return
+    }
+
+    const toPlan = (monthly[brand] && monthly[brand][toM]) || 0
+    const newFrom = fromPlan - amt
+    const newTo = toPlan + amt
+
+    // Upsert source month
+    const { data: exFrom } = await supabase
+      .from('monthly_budgets')
+      .select('id')
+      .eq('year', year)
+      .eq('brand', brand)
+      .eq('month', fromM)
+      .maybeSingle()
+    if (exFrom?.id) {
+      await supabase.from('monthly_budgets').update({ plan_amount: newFrom }).eq('id', exFrom.id)
+    } else {
+      await supabase.from('monthly_budgets').insert([{ year, brand, month: fromM, plan_amount: newFrom, realized_amount: 0 }])
+    }
+
+    // Upsert target month
+    const { data: exTo } = await supabase
+      .from('monthly_budgets')
+      .select('id')
+      .eq('year', year)
+      .eq('brand', brand)
+      .eq('month', toM)
+      .maybeSingle()
+    if (exTo?.id) {
+      await supabase.from('monthly_budgets').update({ plan_amount: newTo }).eq('id', exTo.id)
+    } else {
+      await supabase.from('monthly_budgets').insert([{ year, brand, month: toM, plan_amount: newTo, realized_amount: 0 }])
+    }
+
+    // Log kedua perubahan
+    await supabase.from('budget_logs').insert([
+      {
+        user_id: user.id,
+        year,
+        brand,
+        field_type: 'monthly',
+        month: fromM,
+        old_value: fromPlan,
+        new_value: newFrom
+      },
+      {
+        user_id: user.id,
+        year,
+        brand,
+        field_type: 'monthly',
+        month: toM,
+        old_value: toPlan,
+        new_value: newTo
+      }
+    ])
+
+    setShiftSuccess(
+      'Berhasil geser ' + formatRp(amt) + ' dari ' + MONTHS[fromM - 1] + ' ke ' + MONTHS[toM - 1]
+    )
+    setShiftForm({ brand: allowedBrands[0] || '', fromMonth: 1, toMonth: 2, amount: '' })
+    setShowShift(false)
+    loadData()
+  }
+
   const submitAddendum = async (e) => {
     e.preventDefault()
     setAdError('')
@@ -530,6 +627,96 @@ export default function Budgeting({ user }) {
                 </tbody>
               </table>
             </div>
+          )}
+        </div>
+      )}
+
+      {/* Geser antar bulan */}
+      {canEdit && (
+        <div style={styles.card}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+            <h3 style={{ color: '#1F4E79' }}>Geser Budget Antar Bulan</h3>
+            <button
+              type="button"
+              onClick={() => {
+                setShowShift(!showShift)
+                setShiftForm({ brand: allowedBrands[0] || '', fromMonth: 1, toMonth: 2, amount: '' })
+                setShiftError('')
+                setShiftSuccess('')
+              }}
+              style={styles.secondaryBtn}
+            >
+              {showShift ? 'Tutup' : 'Geser Budget'}
+            </button>
+          </div>
+          <p style={{ fontSize: '0.85rem', color: '#6b7280', marginBottom: '0.75rem' }}>
+            Pindahkan rencana dari satu bulan ke bulan lain. Total alokasi tahun tidak berubah.
+          </p>
+          {shiftSuccess && <div style={styles.success}>{shiftSuccess}</div>}
+          {shiftError && <div style={styles.error}>{shiftError}</div>}
+          {showShift && (
+            <form onSubmit={submitShift}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.75rem' }}>
+                <div>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#6b7280' }}>Brand *</label>
+                  <select
+                    value={shiftForm.brand}
+                    onChange={e => setShiftForm(prev => ({ ...prev, brand: e.target.value }))}
+                    style={{ ...styles.input, width: '100%', marginTop: '0.25rem' }}
+                    required
+                  >
+                    <option value="">Pilih</option>
+                    {allowedBrands.map(b => <option key={b} value={b}>{b}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#6b7280' }}>Dari Bulan *</label>
+                  <select
+                    value={shiftForm.fromMonth}
+                    onChange={e => setShiftForm(prev => ({ ...prev, fromMonth: Number(e.target.value) }))}
+                    style={{ ...styles.input, width: '100%', marginTop: '0.25rem' }}
+                  >
+                    {MONTHS.map((m, i) => (
+                      <option key={i + 1} value={i + 1}>{m}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#6b7280' }}>Ke Bulan *</label>
+                  <select
+                    value={shiftForm.toMonth}
+                    onChange={e => setShiftForm(prev => ({ ...prev, toMonth: Number(e.target.value) }))}
+                    style={{ ...styles.input, width: '100%', marginTop: '0.25rem' }}
+                  >
+                    {MONTHS.map((m, i) => (
+                      <option key={i + 1} value={i + 1}>{m}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#6b7280' }}>Nominal (Rp) *</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', marginTop: '0.25rem' }}>
+                    <span style={{ fontWeight: 600, color: '#1F4E79' }}>Rp</span>
+                    <input
+                      value={shiftForm.amount ? Number(shiftForm.amount).toLocaleString('id-ID') : ''}
+                      onChange={e => setShiftForm(prev => ({ ...prev, amount: e.target.value.replace(/\D/g, '') }))}
+                      style={{ ...styles.input, flex: 1 }}
+                      required
+                      placeholder="0"
+                    />
+                  </div>
+                </div>
+              </div>
+              {shiftForm.brand && shiftForm.fromMonth && (
+                <p style={{ fontSize: '0.8rem', color: '#6b7280', marginTop: '0.5rem' }}>
+                  Rencana {MONTHS[shiftForm.fromMonth - 1]} saat ini:{' '}
+                  <strong>{formatRp((monthly[shiftForm.brand] && monthly[shiftForm.brand][shiftForm.fromMonth]) || 0)}</strong>
+                </p>
+              )}
+              <button type="submit" style={{ ...styles.primaryBtn, marginTop: '0.75rem' }}>
+                Proses Geser
+              </button>
+            </form>
           )}
         </div>
       )}
