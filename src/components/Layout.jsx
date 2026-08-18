@@ -31,19 +31,13 @@ export default function Layout({ user, onLogout }) {
         list = list.filter(p => brandAccess.includes(p.brand))
       }
 
-      // Filter by next level matching this user
       const candidates = list.filter(p => {
         const next = Math.max(1, (p.current_level || 0) + 1)
         return level === Math.min(next, p.required_level || 1)
       })
 
-      if (candidates.length === 0) {
-        if (!cancelled) setPendingCount(0)
-        return
-      }
-
-      // For level 1: exclude programs this user already approved
-      if (level === 1) {
+      let progCount = 0
+      if (level === 1 && candidates.length > 0) {
         const ids = candidates.map(p => p.id)
         const { data: logs } = await supabase
           .from('approval_logs')
@@ -51,17 +45,47 @@ export default function Layout({ user, onLogout }) {
           .in('program_id', ids)
           .eq('level', 1)
           .eq('action', 'Approve')
-
         const already = new Set(
-          (logs || [])
-            .filter(l => l.user_id === user.id)
-            .map(l => l.program_id)
+          (logs || []).filter(l => l.user_id === user.id).map(l => l.program_id)
         )
-        const waiting = candidates.filter(p => !already.has(p.id))
-        if (!cancelled) setPendingCount(waiting.length)
+        progCount = candidates.filter(p => !already.has(p.id)).length
       } else {
-        if (!cancelled) setPendingCount(candidates.length)
+        progCount = candidates.length
       }
+
+      // Addendums pending for this user
+      const { data: ads } = await supabase
+        .from('addendums')
+        .select('id, brand, current_level, required_level, status')
+        .eq('status', 'Menunggu Approval')
+
+      let adList = ads || []
+      if (!isHighLevel && !brandAccess.includes('Semua')) {
+        adList = adList.filter(a => brandAccess.includes(a.brand))
+      }
+      const adCandidates = adList.filter(a => {
+        const next = Math.max(1, (a.current_level || 0) + 1)
+        return level === Math.min(next, a.required_level || 1)
+      })
+
+      let adCount = 0
+      if (level === 1 && adCandidates.length > 0) {
+        const ids = adCandidates.map(a => a.id)
+        const { data: aLogs } = await supabase
+          .from('approval_logs')
+          .select('addendum_id, user_id, action, level')
+          .in('addendum_id', ids)
+          .eq('level', 1)
+          .eq('action', 'Approve')
+        const already = new Set(
+          (aLogs || []).filter(l => l.user_id === user.id).map(l => l.addendum_id)
+        )
+        adCount = adCandidates.filter(a => !already.has(a.id)).length
+      } else {
+        adCount = adCandidates.length
+      }
+
+      if (!cancelled) setPendingCount(progCount + adCount)
     }
 
     loadPending()
