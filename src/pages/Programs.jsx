@@ -365,6 +365,50 @@ export default function Programs({ user }) {
     }
   }
 
+  const exportProgramsCsv = () => {
+    const rows = filtered.length ? filtered : programs
+    if (!rows.length) {
+      alert('Tidak ada data program untuk diexport')
+      return
+    }
+    const headers = [
+      'No', 'Tanggal', 'Brand', 'Nama Program', 'Estimasi Dana', 'Status',
+      'Level', 'No PAP', 'Outlet', 'Distributor', 'Region', 'Area', 'Periode Mulai', 'Periode Selesai', 'Keterangan'
+    ]
+    const esc = (v) => {
+      const s = v == null ? '' : String(v)
+      if (s.includes('"') || s.includes(',') || s.includes('\n')) return '"' + s.replace(/"/g, '""') + '"'
+      return s
+    }
+    const lines = [headers.join(',')]
+    rows.forEach(p => {
+      lines.push([
+        shortId(p.id),
+        p.created_at ? new Date(p.created_at).toLocaleDateString('id-ID') : '',
+        p.brand,
+        p.name,
+        p.budget_amount,
+        p.status,
+        p.required_level,
+        p.no_pap || '',
+        p.outlet || '',
+        p.distributor || '',
+        p.region || '',
+        p.area || '',
+        p.period_start || '',
+        p.period_end || '',
+        (p.description || '').replace(/\[REF:[^\]]+\]/g, '').replace(/\n/g, ' ').trim()
+      ].map(esc).join(','))
+    })
+    const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'programs-export-' + new Date().toISOString().slice(0, 10) + '.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   const printProgram = (p, logs, usersMap) => {
     const desc = (p.description || '').replace(/\[REF:[^\]]+\]/g, '').trim()
     const isNeg = Number(p.budget_amount) < 0
@@ -384,6 +428,21 @@ export default function Programs({ user }) {
     } else {
       approvalRows = '<tr><td colspan="5" style="padding:8px;border:1px solid #333;text-align:center;">Belum ada riwayat approval</td></tr>'
     }
+
+    const biayaProg = Number(p.biaya_program) || 0
+    const biayaPpn = Number(p.ppn) || 0
+    const biayaMailer = Number(p.biaya_mailer) || 0
+    const biayaVendor = Number(p.biaya_vendor) || 0
+    const omzet = Number(p.estimasi_omzet) || 0
+    const grandBreakdown = biayaProg + biayaPpn + biayaMailer + biayaVendor
+    const costRatio = omzet > 0 ? ((Number(p.budget_amount) || grandBreakdown) / omzet * 100).toFixed(1) + '%' : '-'
+
+    // Build signature cells from approval logs (latest approve per level)
+    const approveByLevel = {}
+    ;(logs || []).filter(l => l.action === 'Approve').forEach(l => {
+      const u = usersMap && usersMap[l.user_id]
+      approveByLevel[l.level] = u ? (u.full_name || u.username) : '-'
+    })
 
     const html = `<!DOCTYPE html>
 <html>
@@ -414,8 +473,9 @@ export default function Programs({ user }) {
   </style>
 </head>
 <body>
+  <div style="text-align:center;font-size:12pt;font-weight:bold;letter-spacing:2px;">MT</div>
   <h1>PROPOSAL AKTIVITAS PROMOSI</h1>
-  <div class="sub">Marketing Budget System · Cetak Otomatis</div>
+  <div class="sub">Marketing Budget System</div>
 
   <table class="info">
     <tr>
@@ -458,13 +518,15 @@ export default function Programs({ user }) {
   <div class="box">
     <h3>Estimasi Budget</h3>
     <table class="info" style="margin:0">
-      <tr><td class="label">Biaya Program</td><td class="sep">:</td><td>${formatRp(p.biaya_program || 0)}</td></tr>
-      <tr><td class="label">PPN</td><td class="sep">:</td><td>${formatRp(p.ppn || 0)}</td></tr>
-      <tr><td class="label">Biaya Mailer</td><td class="sep">:</td><td>${formatRp(p.biaya_mailer || 0)}</td></tr>
-      <tr><td class="label">Biaya Vendor</td><td class="sep">:</td><td>${formatRp(p.biaya_vendor || 0)}</td></tr>
-      <tr><td class="label">Estimasi Omzet</td><td class="sep">:</td><td>${formatRp(p.estimasi_omzet || 0)}</td></tr>
+      <tr><td class="label">Biaya Program</td><td class="sep">:</td><td>${formatRp(biayaProg)}</td></tr>
+      <tr><td class="label">PPN</td><td class="sep">:</td><td>${formatRp(biayaPpn)}</td></tr>
+      <tr><td class="label">Biaya Mailer</td><td class="sep">:</td><td>${formatRp(biayaMailer)}</td></tr>
+      <tr><td class="label">Biaya Vendor</td><td class="sep">:</td><td>${formatRp(biayaVendor)}</td></tr>
+      <tr><td class="label">Subtotal Breakdown</td><td class="sep">:</td><td>${formatRp(grandBreakdown)}</td></tr>
+      <tr><td class="label">Estimasi Omzet</td><td class="sep">:</td><td>${formatRp(omzet)}</td></tr>
+      <tr><td class="label">Cost Ratio</td><td class="sep">:</td><td>${costRatio}</td></tr>
     </table>
-    <div class="total" style="margin-top:8px">Total Estimasi Dana (Approval) : ${formatRp(p.budget_amount)}</div>
+    <div class="total" style="margin-top:8px">GRAND TOTAL (Approval) : ${formatRp(p.budget_amount)}</div>
   </div>
 
   <h3 style="margin:0 0 6px;font-size:11pt;">RIWAYAT APPROVAL</h3>
@@ -483,8 +545,38 @@ export default function Programs({ user }) {
     </tbody>
   </table>
 
+  <h3 style="margin:18px 0 6px;font-size:11pt;">PERSETUJUAN</h3>
+  <table class="grid" style="margin-bottom:8px;">
+    <thead>
+      <tr>
+        <th style="text-align:center;width:14%">L1</th>
+        <th style="text-align:center;width:14%">L2</th>
+        <th style="text-align:center;width:14%">L3</th>
+        <th style="text-align:center;width:14%">L4</th>
+        <th style="text-align:center;width:14%">L5</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td style="height:50px;text-align:center;vertical-align:bottom;font-size:9pt;">${approveByLevel[1] || ''}</td>
+        <td style="height:50px;text-align:center;vertical-align:bottom;font-size:9pt;">${approveByLevel[2] || ''}</td>
+        <td style="height:50px;text-align:center;vertical-align:bottom;font-size:9pt;">${approveByLevel[3] || ''}</td>
+        <td style="height:50px;text-align:center;vertical-align:bottom;font-size:9pt;">${approveByLevel[4] || ''}</td>
+        <td style="height:50px;text-align:center;vertical-align:bottom;font-size:9pt;">${approveByLevel[5] || ''}</td>
+      </tr>
+      <tr>
+        <td style="text-align:center;font-size:8pt;color:#666;">Approver L1</td>
+        <td style="text-align:center;font-size:8pt;color:#666;">Approver L2</td>
+        <td style="text-align:center;font-size:8pt;color:#666;">Approver L3</td>
+        <td style="text-align:center;font-size:8pt;color:#666;">Approver L4</td>
+        <td style="text-align:center;font-size:8pt;color:#666;">Approver L5</td>
+      </tr>
+    </tbody>
+  </table>
+  <p style="font-size:8pt;color:#666;margin:0 0 12px;">Nama terisi otomatis dari riwayat approval yang sudah Approve.</p>
+
   <div class="footer">
-    Dicetak dari Marketing Budget System · ${new Date().toLocaleString('id-ID')}
+    Dicetak dari Marketing Budget System · ${new Date().toLocaleString('id-ID')} · Status: ${p.status || '-'}
   </div>
 
   <div class="no-print" style="margin-top:20px;text-align:center;">
@@ -707,6 +799,8 @@ export default function Programs({ user }) {
       <div style={styles.card}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
           <h3 style={{ color: '#1F4E79' }}>Daftar Program</h3>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <button type="button" onClick={exportProgramsCsv} style={styles.secondaryBtn}>Export Excel (CSV)</button>
           <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ ...styles.input, width: 'auto' }}>
             <option value="Semua">Semua Status</option>
             <option value="Draft">Draft</option>
@@ -715,6 +809,7 @@ export default function Programs({ user }) {
             <option value="Approved">Approved</option>
             <option value="Rejected">Rejected</option>
           </select>
+          </div>
         </div>
 
         {loading ? (
