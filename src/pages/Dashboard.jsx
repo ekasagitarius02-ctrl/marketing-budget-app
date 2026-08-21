@@ -205,8 +205,61 @@ export default function Dashboard({ user }) {
                   </tbody>
                 </table>
               </div>
+
+              <h4 style={{ color: '#1F4E79', margin: '1.25rem 0 0.75rem', fontSize: '0.95rem' }}>Penggunaan Budget</h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {brandSummary.map(b => {
+                  const pct = b.allocation > 0 ? Math.min(100, Math.round((b.realized / b.allocation) * 100)) : 0
+                  const barColor = pct > 90 ? '#dc2626' : pct > 70 ? '#d97706' : '#059669'
+                  return (
+                    <div key={'bar-' + b.brand}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '0.25rem' }}>
+                        <span style={{ fontWeight: 600 }}>{b.brand}</span>
+                        <span style={{ color: '#6b7280' }}>{formatRp(b.realized)} / {formatRp(b.allocation)} ({pct}%)</span>
+                      </div>
+                      <div style={{ background: '#e5e7eb', borderRadius: '6px', height: '10px', overflow: 'hidden' }}>
+                        <div style={{
+                          width: pct + '%',
+                          height: '100%',
+                          background: barColor,
+                          borderRadius: '6px',
+                          transition: 'width 0.3s'
+                        }} />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           )}
+
+          {/* Status distribution */}
+          <div style={styles.card}>
+            <h3 style={{ color: '#1F4E79', marginBottom: '1rem' }}>Distribusi Status Program</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+              {[
+                { key: 'waiting', label: 'Menunggu Approval', color: '#d97706', n: stats.waiting },
+                { key: 'revisi', label: 'Revisi', color: '#ea580c', n: stats.revisi },
+                { key: 'approved', label: 'Approved', color: '#059669', n: stats.approved },
+                { key: 'draft', label: 'Draft', color: '#6b7280', n: stats.draft },
+                { key: 'rejected', label: 'Rejected', color: '#dc2626', n: stats.rejected }
+              ].map(item => {
+                const max = Math.max(stats.totalPrograms, 1)
+                const pct = Math.round((item.n / max) * 100)
+                return (
+                  <div key={item.key}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '0.2rem' }}>
+                      <span>{item.label}</span>
+                      <span style={{ fontWeight: 600 }}>{item.n}</span>
+                    </div>
+                    <div style={{ background: '#e5e7eb', borderRadius: '6px', height: '8px', overflow: 'hidden' }}>
+                      <div style={{ width: pct + '%', height: '100%', background: item.color, borderRadius: '6px' }} />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
 
           {/* Recent programs */}
           <div style={styles.card}>
