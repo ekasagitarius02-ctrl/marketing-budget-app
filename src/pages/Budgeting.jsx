@@ -439,6 +439,39 @@ export default function Budgeting({ user }) {
     return t
   }
 
+  const exportBudgetCsv = () => {
+    const esc = (v) => {
+      const s = v == null ? '' : String(v)
+      if (s.includes('"') || s.includes(',') || s.includes('\n')) return '"' + s.replace(/"/g, '""') + '"'
+      return s
+    }
+    const lines = []
+    lines.push(['Tahun', 'Brand', 'Alokasi Tahun', 'Total Rencana', 'Realisasi', 'Sisa'].join(','))
+    allowedBrands.forEach(brand => {
+      const alloc = brandAlloc[brand] || 0
+      const plan = totalPlan(brand)
+      const real = (realized[brand] && realized[brand].total) || 0
+      lines.push([year, brand, alloc, plan, real, alloc - real].map(esc).join(','))
+    })
+    lines.push('')
+    lines.push(['Tahun', 'Brand', 'Bulan', 'Rencana', 'Realisasi', 'Sisa Kumulatif'].join(','))
+    allowedBrands.forEach(brand => {
+      for (let m = 1; m <= 12; m++) {
+        const plan = (monthly[brand] && monthly[brand][m]) || 0
+        const real = (realized[brand] && realized[brand].byMonth[m]) || 0
+        const avail = getMonthAvailable(brand, m)
+        lines.push([year, brand, MONTHS[m - 1], plan, real, avail].map(esc).join(','))
+      }
+    })
+    const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'budget-' + year + '-' + new Date().toISOString().slice(0, 10) + '.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.75rem' }}>
@@ -454,6 +487,9 @@ export default function Budgeting({ user }) {
               <option key={y} value={y}>{y}</option>
             ))}
           </select>
+          <button type="button" onClick={exportBudgetCsv} style={styles.secondaryBtn}>
+            Export Excel (CSV)
+          </button>
           {isAdmin && (
             <button onClick={() => setShowLogs(!showLogs)} style={styles.secondaryBtn}>
               {showLogs ? 'Tutup Log' : 'Lihat Log'}
